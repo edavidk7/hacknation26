@@ -1,0 +1,10 @@
+[project]
+name = "hacknation26"
+version = "0.1.0"
+description = "Multimodal memory to music — agentic pipeline"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic-ai",
+    "opencv-python-headless",
+    "pillow",
+]
