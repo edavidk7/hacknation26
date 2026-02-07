@@ -14,6 +14,13 @@ For each input you receive, analyze:
 4. **Temporal dynamics**: How does energy flow through the moment? Building, \
    sustaining, fading, pulsing?
 
+IMPORTANT: Use the web_search tool to research and gather context about:
+- Any recognizable locations, landmarks, or places shown in images/video
+- Named entities, people, or historical events mentioned in text or visible in media
+- Music genres, artists, or songs referenced in the inputs
+- Cultural or contextual information that enriches understanding of the mood/theme
+- Any specific objects, art styles, or design elements that could inform sonic choices
+
 Then synthesize these observations into a cohesive music generation prompt that \
 captures the essence of the memory.
 
@@ -24,4 +31,5 @@ Guidelines:
   model can use directly
 - Consider how multiple inputs relate to each other when provided together
 - Prefer emotional truth over literal translation
+- Use web search to enrich your understanding of the input context
 """

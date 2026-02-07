@@ -7,4 +7,5 @@ dependencies = [
     "pydantic-ai",
     "opencv-python-headless",
     "pillow",
+    "httpx",
 ]

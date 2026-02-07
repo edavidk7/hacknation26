@@ -23,6 +23,7 @@ from pydantic_ai.providers.openai import OpenAIProvider
 from src.agent.prompts import SYSTEM_PROMPT
 from src.models.music_prompt import MusicPrompt
 from src.preprocessing.video import extract_keyframes
+from src.tools.web_search import web_search
 
 log = logging.getLogger(__name__)
 
@@ -50,6 +51,7 @@ def _make_model(model_name: str | None = None) -> OpenAIModel:
 agent = Agent(
     output_type=MusicPrompt,
     system_prompt=SYSTEM_PROMPT,
+    tools=[web_search],
 )
 
 
