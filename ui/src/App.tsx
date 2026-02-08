@@ -387,7 +387,7 @@ function App() {
             >
               {audioFile ? (
                 <div className="media-file-row">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#48cae4" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#c1121f" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M9 18V5l12-2v13" />
                     <circle cx="6" cy="18" r="3" />
                     <circle cx="18" cy="16" r="3" />
@@ -436,7 +436,7 @@ function App() {
             >
               {videoFile ? (
                 <div className="media-file-row">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#90e0ef" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#669bbc" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                     <polygon points="23 7 16 12 23 17 23 7" />
                     <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
                   </svg>

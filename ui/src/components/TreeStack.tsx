@@ -6,14 +6,14 @@ import EdgeCanvas from "./EdgeCanvas";
 // ── Section label colors (cycles for arbitrary count) ──
 
 const SECTION_ACCENTS = [
-  "#0077b6",
-  "#00b4d8",
-  "#48cae4",
-  "#90e0ef",
-  "#0096c7",
-  "#ade8f4",
-  "#caf0f8",
-  "#023e8a",
+  "#669bbc",
+  "#89b3ce",
+  "#7aadd0",
+  "#c1121f",
+  "#ef8389",
+  "#d4c5a0",
+  "#fdf0d5",
+  "#003049",
 ];
 
 interface TreeData {
@@ -224,7 +224,7 @@ export default function TreeStack({
                   color={
                     isActive
                       ? SECTION_ACCENTS[i % SECTION_ACCENTS.length] + "40"
-                      : "rgba(0,119,182,0.12)"
+                      : "rgba(102,155,188,0.12)"
                   }
                   lineWidth={isActive ? 1.5 : 1}
                 />

@@ -46,17 +46,17 @@ const KIND_DESCRIPTIONS: Record<NodeKind, string> = {
 };
 
 const KIND_COLORS: Record<NodeKind, string> = {
-  section: "#0077b6",
-  mood: "#48cae4",
-  genre: "#00b4d8",
-  instruments: "#90e0ef",
-  texture: "#0096c7",
-  sonic: "#ade8f4",
-  instrument: "#caf0f8",
-  nuance: "#48cae4",
-  influence: "#90e0ef",
-  detail: "#ade8f4",
-  custom: "#0096c7",
+  section: "#669bbc",
+  mood: "#fdf0d5",
+  genre: "#89b3ce",
+  instruments: "#c1121f",
+  texture: "#d4c5a0",
+  sonic: "#669bbc",
+  instrument: "#ef8389",
+  nuance: "#fdf0d5",
+  influence: "#7aadd0",
+  detail: "#d4c5a0",
+  custom: "#669bbc",
 };
 
 // ── Helpers for instrument detail editing ──────────────

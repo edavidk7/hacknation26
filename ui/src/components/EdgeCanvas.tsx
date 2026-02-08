@@ -14,7 +14,7 @@ import { useEffect, useRef, useCallback } from "react";
 interface Props {
   /** Arbitrary deps array — redraw when these change */
   deps?: unknown[];
-  /** Stroke color (default: rgba(0,119,182,0.25)) */
+  /** Stroke color (default: rgba(102,155,188,0.25)) */
   color?: string;
   /** Stroke width in CSS px (default: 1.5) */
   lineWidth?: number;
@@ -42,7 +42,7 @@ function getOffsetRelativeTo(
 
 export default function EdgeCanvas({
   deps = [],
-  color = "rgba(0,119,182,0.25)",
+  color = "rgba(102,155,188,0.25)",
   lineWidth = 1.5,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);

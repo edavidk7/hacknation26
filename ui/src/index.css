@@ -12,8 +12,8 @@
   font-family: "Inter", "SF Pro Display", system-ui, -apple-system, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color: #caf0f8;
-  background-color: #020420;
+  color: #fdf0d5;
+  background-color: #001219;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -24,7 +24,7 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background: #020420;
+  background: #001219;
   overflow-x: auto;
 }
 
