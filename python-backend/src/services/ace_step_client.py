@@ -9,19 +9,12 @@ import os
 from typing import Any, Optional
 
 import httpx
-import requests
-from requests.auth import HTTPBasicAuth
 
 from src.models.song_tree import SongCharacteristics, SongNode
 
 log = logging.getLogger(__name__)
 
-DEFAULT_ACESTEP_URL = "https://abox-noneruptive-felisha.ngrok-free.dev"
-
-
-# Suppress SSL warnings for ngrok tunnel
-import urllib3
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+DEFAULT_ACESTEP_URL = "http://localhost:8001"
 
 
 def song_characteristics_to_ace_step_params(
@@ -371,35 +364,28 @@ class AceStepClient:
             or DEFAULT_ACESTEP_URL
         )
         self.api_key = api_key or os.environ.get("ACESTEP_API_KEY")
-        # Basic auth for ngrok (username:password hardcoded for remote service)
-        self.auth = ("admin", "goldenhands")
 
     def _headers(self) -> dict[str, str]:
-        headers: dict[str, str] = {
-            "ngrok-skip-browser-warning": "true",
-        }
+        headers: dict[str, str] = {}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
         return headers
 
     async def submit_task(self, params: dict) -> str:
         """Submit a music generation task. Returns the task_id."""
-        session = requests.Session()
-        session.headers.update(self._headers())
-        session.auth = HTTPBasicAuth(*self.auth)
-        session.verify = False
-        
-        resp = session.post(
-            f"{self.base_url}/release_task",
-            json=params,
-        )
-        resp.raise_for_status()
-        data = resp.json().get("data", resp.json())
-        task_id = data.get("task_id")
-        if not task_id:
-            raise ValueError(f"No task_id in response: {resp.json()}")
-        log.info("Submitted ACE-Step task %s", task_id)
-        return task_id
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(
+                f"{self.base_url}/release_task",
+                json=params,
+                headers=self._headers(),
+            )
+            resp.raise_for_status()
+            data = resp.json().get("data", resp.json())
+            task_id = data.get("task_id")
+            if not task_id:
+                raise ValueError(f"No task_id in response: {resp.json()}")
+            log.info("Submitted ACE-Step task %s", task_id)
+            return task_id
 
     async def poll_result(
         self,
@@ -412,53 +398,50 @@ class AceStepClient:
         Returns the parsed result dict for the first (and usually only) item.
         """
         elapsed = 0.0
-        session = requests.Session()
-        session.headers.update(self._headers())
-        session.auth = HTTPBasicAuth(*self.auth)
-        session.verify = False
-        
-        while elapsed < timeout:
-            resp = session.post(
-                f"{self.base_url}/query_result",
-                json={"task_id_list": [task_id]},
-            )
-            resp.raise_for_status()
-            items = resp.json().get("data", [])
-            if not items:
+        async with httpx.AsyncClient(timeout=30) as client:
+            while elapsed < timeout:
+                resp = await client.post(
+                    f"{self.base_url}/query_result",
+                    json={"task_id_list": [task_id]},
+                    headers=self._headers(),
+                )
+                resp.raise_for_status()
+                items = resp.json().get("data", [])
+                if not items:
+                    await asyncio.sleep(interval)
+                    elapsed += interval
+                    continue
+
+                item = items[0]
+                status = item.get("status", 0)
+                progress = item.get("progress_text", "")
+                if progress:
+                    log.info("ACE-Step %s progress: %s", task_id, progress)
+
+                if status == 1:  # succeeded
+                    result_raw = item.get("result", "[]")
+                    if isinstance(result_raw, str):
+                        result_list = json.loads(result_raw)
+                    else:
+                        result_list = result_raw
+                    if not result_list:
+                        raise ValueError("ACE-Step returned empty result")
+                    return result_list[0]
+
+                if status == 2:  # failed
+                    result_raw = item.get("result", "[]")
+                    error_msg = "Unknown error"
+                    try:
+                        parsed = json.loads(result_raw) if isinstance(result_raw, str) else result_raw
+                        if parsed and isinstance(parsed, list) and parsed[0].get("error"):
+                            error_msg = parsed[0]["error"]
+                    except Exception:
+                        error_msg = str(result_raw)
+                    raise RuntimeError(f"ACE-Step generation failed: {error_msg}")
+
+                # status 0 → still running
                 await asyncio.sleep(interval)
                 elapsed += interval
-                continue
-
-            item = items[0]
-            status = item.get("status", 0)
-            progress = item.get("progress_text", "")
-            if progress:
-                log.info("ACE-Step %s progress: %s", task_id, progress)
-
-            if status == 1:  # succeeded
-                result_raw = item.get("result", "[]")
-                if isinstance(result_raw, str):
-                    result_list = json.loads(result_raw)
-                else:
-                    result_list = result_raw
-                if not result_list:
-                    raise ValueError("ACE-Step returned empty result")
-                return result_list[0]
-
-            if status == 2:  # failed
-                result_raw = item.get("result", "[]")
-                error_msg = "Unknown error"
-                try:
-                    parsed = json.loads(result_raw) if isinstance(result_raw, str) else result_raw
-                    if parsed and isinstance(parsed, list) and parsed[0].get("error"):
-                        error_msg = parsed[0]["error"]
-                except Exception:
-                    error_msg = str(result_raw)
-                raise RuntimeError(f"ACE-Step generation failed: {error_msg}")
-
-            # status 0 → still running
-            await asyncio.sleep(interval)
-            elapsed += interval
 
         raise TimeoutError(f"ACE-Step task {task_id} timed out after {timeout}s")
 
@@ -466,14 +449,10 @@ class AceStepClient:
         """Download an audio file from the ACE-Step /v1/audio endpoint."""
         # audio_url_path is like "/v1/audio?path=..."
         url = f"{self.base_url}{audio_url_path}"
-        session = requests.Session()
-        session.headers.update(self._headers())
-        session.auth = HTTPBasicAuth(*self.auth)
-        session.verify = False
-        
-        resp = session.get(url)
-        resp.raise_for_status()
-        return resp.content
+        async with httpx.AsyncClient(timeout=120) as client:
+            resp = await client.get(url, headers=self._headers())
+            resp.raise_for_status()
+            return resp.content
 
     async def generate_music(self, params: dict) -> dict:
         """Full generation flow: submit → poll → download audio.
@@ -492,11 +471,9 @@ class AceStepClient:
         if audio_url:
             try:
                 audio_bytes = await self.download_audio(audio_url)
-                log.info("Downloaded %d bytes of audio from %s", len(audio_bytes), audio_url)
+                log.info("Downloaded %d bytes of audio", len(audio_bytes))
             except Exception as e:
                 log.error("Failed to download audio from %s: %s", audio_url, e)
-        else:
-            log.warning("No audio file URL in result: %s", result.keys())
 
         # Extract descriptions (the LM's low-level instructions)
         metas = result.get("metas", {})

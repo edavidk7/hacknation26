@@ -16,9 +16,6 @@ import TreeStack from "./components/TreeStack";
 import type { TreeData } from "./components/TreeStack";
 import DetailPanel from "./components/DetailPanel";
 import Showcase from "./components/Showcase";
-import SnapshotSidebar from "./components/SnapshotSidebar";
-import WorktreePanel from "./components/WorktreePanel";
-import GenerationMetadata from "./components/GenerationMetadata";
 import "./App.css";
 
 function App() {
@@ -46,13 +43,6 @@ function App() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [generatingMusic, setGeneratingMusic] = useState(false);
   const [musicDescriptions, setMusicDescriptions] = useState<Record<string, unknown> | null>(null);
-  const [aceGenerationInfo, setAceGenerationInfo] = useState<string | null>(null);
-
-  // ── Worktree & snapshot state ──────────────────────
-  const [currentSnapshotId, setCurrentSnapshotId] = useState<string | null>(null);
-  const [originalTree, setOriginalTree] = useState<VisualNode | null>(null);
-  const [treeDiff, setTreeDiff] = useState<Record<string, unknown>[]>([]);
-  const [showWorktree, setShowWorktree] = useState(false);
 
   // ── Derived ────────────────────────────────────────
   const flattenedPrompt = useMemo(
@@ -281,7 +271,6 @@ function App() {
     setGeneratingMusic(true);
     setMusicDescriptions(null);
     setAudioUrl(null);
-    setAceGenerationInfo(null);
     try {
       const formData = new FormData();
       formData.append("vibe_tree", JSON.stringify(tree));
@@ -313,7 +302,6 @@ function App() {
           if (!job.result) throw new Error("No result returned");
           setAudioUrl(`http://localhost:8000${job.result.audio_url}`);
           setMusicDescriptions(job.result.descriptions);
-          setAceGenerationInfo(job.result.descriptions?.generation_info || null);
           completed = true;
         } else if (job.status === "failed") {
           throw new Error(job.error || "Music generation failed");
@@ -329,91 +317,6 @@ function App() {
       setGeneratingMusic(false);
     }
   };
-
-  // ── Handler: create snapshot & generate music from worktree ───
-  const handleWorktreeMusicGenerate = async () => {
-    if (!tree) return;
-    setGeneratingMusic(true);
-    setMusicDescriptions(null);
-    setAudioUrl(null);
-    setAceGenerationInfo(null);
-    try {
-      const formData = new FormData();
-      formData.append("tree", JSON.stringify(tree));
-      if (currentSnapshotId) {
-        formData.append("snapshot_id", currentSnapshotId);
-      }
-      if (audioFile) formData.append("reference_audio", audioFile);
-
-      const res = await fetch("http://localhost:8000/api/music-worktree", {
-        method: "POST",
-        body: formData,
-      });
-      if (!res.ok) throw new Error(`API error: ${res.status}`);
-      const { job_id } = await res.json();
-
-      // Poll for completion
-      let completed = false;
-      let attempts = 0;
-      const maxAttempts = 600;
-
-      while (!completed && attempts < maxAttempts) {
-        attempts++;
-        await new Promise((r) => setTimeout(r, 2000));
-
-        const statusRes = await fetch(
-          `http://localhost:8000/api/status/${job_id}`
-        );
-        if (!statusRes.ok) throw new Error(`Status check failed: ${statusRes.status}`);
-        const job = await statusRes.json();
-
-        if (job.status === "completed") {
-          if (!job.result) throw new Error("No result returned");
-          setAudioUrl(`http://localhost:8000${job.result.audio_url}`);
-          setMusicDescriptions(job.result.descriptions);
-          setAceGenerationInfo(job.result.descriptions?.generation_info || null);
-          setCurrentSnapshotId(job.result.snapshot_id);
-          
-          // Load diff if available
-          if (job.result.diff_info) {
-            setTreeDiff(job.result.diff_info);
-          }
-          completed = true;
-        } else if (job.status === "failed") {
-          throw new Error(job.error || "Music generation failed");
-        }
-      }
-
-      if (!completed) throw new Error("Music generation timed out");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown error";
-      alert(`Worktree music generation error: ${message}`);
-      console.error("Worktree music generation error:", error);
-    } finally {
-      setGeneratingMusic(false);
-    }
-  };
-
-  // ── Handler: load snapshot and restore tree ────────
-  const handleLoadSnapshot = useCallback(
-    (snapshotTree: VibeTree, snapshotId: string) => {
-      setCurrentSnapshotId(snapshotId);
-      setTree(snapshotTree);
-      
-      // Restore visual trees
-      if (snapshotTree.root.sections.length > 0) {
-        const vTrees = snapshotTree.root.sections.map((s) =>
-          sectionToVisualTree(s)
-        );
-        setVisualTrees(vTrees);
-        setActiveSection(0);
-      }
-      
-      setSelectedNodeId(null);
-      setShowWorktree(true);
-    },
-    []
-  );
 
   // ── Handlers: section management ──────────────────
   const handleAddSection = useCallback(() => {
@@ -819,56 +722,7 @@ function App() {
             )}
           </section>
         )}
-
-        {/* ── Worktree Diff Panel ─────────────────────── */}
-        {showWorktree && treeDiff.length > 0 && (
-          <section className="panel">
-            <WorktreePanel
-              originalTree={originalTree}
-              modifiedTree={activeVisualTree}
-              changes={treeDiff as any}
-            />
-          </section>
-        )}
-
-        {/* ── Generation Metadata ─────────────────────── */}
-        {musicDescriptions && (
-          <section className="panel">
-            <GenerationMetadata
-              descriptions={musicDescriptions}
-              aceGenerationInfo={aceGenerationInfo}
-              acePrompt={musicDescriptions.prompt as string}
-            />
-          </section>
-        )}
-
-        {/* ── Worktree Music Generation Button ────────── */}
-        {tree && (
-          <section className="panel" style={{ textAlign: "center" }}>
-            <button
-              className="btn btn--primary"
-              onClick={handleWorktreeMusicGenerate}
-              disabled={generatingMusic}
-              style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
-            >
-              {generatingMusic ? (
-                <>
-                  <span className="spinner" />
-                  Generating Music...
-                </>
-              ) : (
-                "Generate Music (Worktree)"
-              )}
-            </button>
-          </section>
-        )}
       </main>
-
-      {/* ── Snapshot Sidebar ────────────────────────── */}
-      <SnapshotSidebar
-        onLoadSnapshot={handleLoadSnapshot}
-        currentSnapshotId={currentSnapshotId}
-      />
     </div>
   );
 }
