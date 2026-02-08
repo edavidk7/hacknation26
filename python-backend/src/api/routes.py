@@ -81,7 +81,8 @@ def create_app() -> FastAPI:
             background_tasks: FastAPI background tasks
 
         Returns:
-            Job ID and initial status
+            Job ID and initial status. Audio files are preserved for use in
+            subsequent music generation via /api/generate-music.
         """
         # Validate that at least one input is provided
         has_text = bool(text and text.strip())
@@ -98,6 +99,7 @@ def create_app() -> FastAPI:
 
         # Save uploaded files
         file_paths = []
+        audio_files = []
         try:
             for file in files:
                 if file.filename:
@@ -105,6 +107,9 @@ def create_app() -> FastAPI:
                     with open(file_path, "wb") as f:
                         f.write(await file.read())
                     file_paths.append(str(file_path))
+                    # Track audio files for later reference
+                    if file.filename.lower().endswith(('.mp3', '.wav', '.ogg', '.flac', '.m4a', '.aac')):
+                        audio_files.append(str(file_path))
         except Exception as e:
             log.error(f"Error saving uploaded files: {e}")
             shutil.rmtree(job_dir, ignore_errors=True)
@@ -115,6 +120,7 @@ def create_app() -> FastAPI:
             "status": "processing",
             "result": None,
             "error": None,
+            "audio_files": audio_files,  # Preserve for music generation
         }
 
         # Start generation in background
@@ -150,6 +156,7 @@ def create_app() -> FastAPI:
         vibe_tree: str = Form(...),
         audio_duration: float = Form(30),
         reference_audio: Optional[UploadFile] = File(None),
+        source_audio: Optional[UploadFile] = File(None),
         background_tasks: BackgroundTasks = BackgroundTasks(),
     ) -> dict:
         """Generate music from a VibeTree via ACE-Step.
@@ -158,6 +165,7 @@ def create_app() -> FastAPI:
             vibe_tree: JSON string of the VibeTree
             audio_duration: Duration of the generated audio in seconds (default: 30)
             reference_audio: Optional audio file for style transfer
+            source_audio: Optional original audio clip to forward for style influence
         """
         try:
             tree_dict = json.loads(vibe_tree)
@@ -176,10 +184,23 @@ def create_app() -> FastAPI:
                 f.write(await reference_audio.read())
             ref_audio_path = str(ref_path)
 
+        # Save source audio if provided
+        src_audio_path: str | None = None
+        if source_audio and source_audio.filename:
+            src_path = job_dir / ("source_" + source_audio.filename)
+            with open(src_path, "wb") as f:
+                f.write(await source_audio.read())
+            src_audio_path = str(src_path)
+
         jobs[job_id] = {"status": "processing", "result": None, "error": None}
 
         background_tasks.add_task(
-            _run_music_generation, job_id, tree_dict, ref_audio_path, audio_duration
+            _run_music_generation,
+            job_id,
+            tree_dict,
+            ref_audio_path,
+            audio_duration,
+            src_audio_path,
         )
 
         return {"job_id": job_id, "status": "processing"}
@@ -404,8 +425,17 @@ def _run_music_generation(
     vibe_tree: dict,
     reference_audio_path: str | None,
     audio_duration: float = 30,
+    source_audio_path: str | None = None,
 ) -> None:
-    """Run ACE-Step music generation in the background (sync — runs in threadpool)."""
+    """Run ACE-Step music generation in the background (sync — runs in threadpool).
+    
+    Args:
+        job_id: Unique job identifier
+        vibe_tree: The vibe tree dict
+        reference_audio_path: Optional reference audio for style transfer
+        audio_duration: Duration of generated audio in seconds
+        source_audio_path: Optional original audio clip to forward for style reference
+    """
     try:
         log.info(f"Starting music generation for job {job_id}")
 
@@ -421,13 +451,17 @@ def _run_music_generation(
                 f"[{job_id}] Assembly pass returned empty, falling back to mechanical conversion"
             )
 
+        # Use source_audio as reference if provided, otherwise use reference_audio
+        ref_audio = source_audio_path or reference_audio_path
         params = vibe_tree_to_ace_step_params(
             vibe_tree,
-            reference_audio_path,
+            ref_audio,
             assembled_prompt=assembled if assembled.get("prompt") else None,
             audio_duration=audio_duration,
         )
         log.info(f"  ACE-Step params: prompt={params.get('prompt', '')[:100]}...")
+        if ref_audio:
+            log.info(f"  Using reference audio: {ref_audio}")
 
         client = AceStepClient()
         result = asyncio.run(client.generate_music(params))
