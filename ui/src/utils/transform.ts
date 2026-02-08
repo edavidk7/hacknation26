@@ -15,7 +15,7 @@ export interface SongNode {
 }
 
 export interface SongCharacteristics {
-  root: SongNode;
+  root?: SongNode;
 }
 
 /**
@@ -23,9 +23,21 @@ export interface SongCharacteristics {
  * This maps the arbitrary tree structure into the expected section-based format.
  */
 export function transformSongCharacteristicsToVibeTree(
-  characteristics: SongCharacteristics
+  data: any
 ): VibeTree {
+  // Handle both direct SongCharacteristics and the API response wrapper
+  const characteristics = data?.vibe_tree || data;
+  
+  if (!characteristics) {
+    throw new Error("No vibe_tree data in API response");
+  }
+  
   const root = characteristics.root;
+  
+  if (!root) {
+    console.error("SongCharacteristics structure:", characteristics);
+    throw new Error("Invalid SongCharacteristics: missing root property");
+  }
 
   // Store the entire tree structure as-is in a single section
   const sections = [

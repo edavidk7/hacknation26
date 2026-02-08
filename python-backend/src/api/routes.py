@@ -17,7 +17,11 @@ from fastapi.responses import JSONResponse, FileResponse
 from pydantic import BaseModel
 
 from src.agent.music_agent import generate_music_prompt
-from src.services.ace_step_client import AceStepClient, vibe_tree_to_ace_step_params
+from src.services.ace_step_client import (
+    AceStepClient,
+    vibe_tree_to_ace_step_params,
+    song_characteristics_to_ace_step_params,
+)
 
 log = logging.getLogger(__name__)
 
@@ -192,14 +196,22 @@ async def _run_generation(
     disable_web_search: bool,
     use_mock: bool = False,
 ) -> None:
-    """Run the music prompt generation in the background."""
+    """Run the music prompt generation in the background.
+    
+    This now does the full pipeline:
+    1. Generate vibe tree from multimodal inputs
+    2. Convert vibe tree to ACE-Step parameters
+    3. Call ACE-Step to generate music
+    """
     try:
         log.info(f"Starting generation for job {job_id}")
         log.info(f"  Files: {file_paths}")
         log.info(f"  Text: {text}")
         log.info(f"  Use mock: {use_mock}")
 
-        result = await generate_music_prompt(
+        # Step 1: Generate vibe tree
+        log.info(f"[{job_id}] Generating vibe tree...")
+        vibe_tree = await generate_music_prompt(
             file_paths=file_paths if file_paths else None,
             text=text,
             model_name=model_name,
@@ -210,16 +222,51 @@ async def _run_generation(
             use_mock=use_mock,
         )
 
-        # Convert Pydantic model to dict
-        result_dict = result.model_dump() if hasattr(result, "model_dump") else result
+        # Convert to dict for storage
+        vibe_tree_dict = vibe_tree.model_dump() if hasattr(vibe_tree, "model_dump") else vibe_tree
+        log.info(f"[{job_id}] Vibe tree generated successfully")
+        
+        # Step 2: Convert vibe tree to ACE-Step parameters
+        log.info(f"[{job_id}] Converting to ACE-Step parameters...")
+        ace_params = song_characteristics_to_ace_step_params(vibe_tree)
+        log.info(f"[{job_id}] ACE-Step params: prompt='{ace_params.get('prompt', '')[:100]}...'")
+        
+        # Step 3: Generate music via ACE-Step (optional)
+        log.info(f"[{job_id}] Submitting to ACE-Step...")
+        ace_result = None
+        try:
+            client = AceStepClient()
+            ace_result = await client.generate_music(ace_params)
+            
+            # Save audio to job directory
+            job_dir = TEMP_DIR / job_id
+            job_dir.mkdir(parents=True, exist_ok=True)
+            audio_path = job_dir / "output.mp3"
+            audio_path.write_bytes(ace_result["audio_bytes"])
+            log.info(f"[{job_id}] Saved audio to {audio_path} ({len(ace_result['audio_bytes'])} bytes)")
+        except Exception as ace_error:
+            log.warning(f"[{job_id}] ACE-Step generation failed (continuing without audio): {ace_error}")
+            ace_result = None
+        
+        # Store result with both tree and generation metadata
+        result_data = {
+            "vibe_tree": vibe_tree_dict,
+        }
+        
+        if ace_result:
+            result_data["audio_url"] = f"/api/audio/{job_id}"
+            result_data["descriptions"] = ace_result.get("descriptions", {})
+        else:
+            result_data["audio_status"] = "not_generated"
+            result_data["audio_error"] = "ACE-Step API not available"
+        
         jobs[job_id] = {
             "status": "completed",
-            "result": result_dict,
+            "result": result_data,
             "error": None,
         }
 
-        log.info(f"Completed generation for job {job_id}")
-        log.info(f"Result structure: {json.dumps(result_dict, indent=2, default=str)}")
+        log.info(f"[{job_id}] Completed full generation pipeline")
 
     except Exception as e:
         log.error(f"Error during generation for job {job_id}: {e}", exc_info=True)
@@ -230,7 +277,7 @@ async def _run_generation(
         }
 
     finally:
-        # Clean up temporary files (but not the job dir itself — audio may still be needed)
+        # Clean up temporary input files
         job_dir = TEMP_DIR / job_id
         # Only clean up input files, not output audio
         for f in (job_dir).glob("*"):
