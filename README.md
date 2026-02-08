@@ -37,6 +37,11 @@ flowchart TD
 - **Music Generation:** ACE-Step 1.5 (remote GPU via ngrok)
 - **Deployment:** Docker Compose, Nginx
 
+## Prerequisites
+
+- [uv](https://docs.astral.sh/uv/) (Python package manager)
+- Node.js and npm
+
 ## Quick Start
 
 ```bash
