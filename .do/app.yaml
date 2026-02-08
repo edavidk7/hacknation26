@@ -3,8 +3,7 @@ region: nyc
 
 services:
   - name: api
-    source_dir: python-backend
-    dockerfile_path: Dockerfile
+    dockerfile_path: python-backend/Dockerfile
     github:
       repo: edavidk7/hacknation26
       branch: main
