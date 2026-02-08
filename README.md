@@ -2,8 +2,7 @@
 
 Ruben is an exploratory tool that lets people create music from images, videos, and text while gaining intuition for how AI models interpret multimodal inputs.
 
-## Screenshots
-The homepage looks like this:
+On startup, you will be greeted by this:
 
 ![Input page](screenshots/ruben_page.png)
 
