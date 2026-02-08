@@ -1,6 +1,5 @@
 import { useState, useMemo, useRef, useCallback } from "react";
 import type { VibeTree, VisualNode, Section } from "./utils/types";
-import { flattenTree } from "./utils/flatten";
 import {
   sectionToVisualTree,
   emptyVisualTree,
@@ -33,7 +32,7 @@ function App() {
   // ── Vibe Tree state ────────────────────────────────
   const [tree, setTree] = useState<VibeTree | null>(null);
   const [generating, setGenerating] = useState(false);
-  const [showFlattened, setShowFlattened] = useState(false);
+  
 
   // ── Visual trees (one per section) ─────────────────
   const [visualTrees, setVisualTrees] = useState<VisualNode[]>([]);
@@ -47,11 +46,6 @@ function App() {
   const [songDuration, setSongDuration] = useState<number>(30);
 
   // ── Derived ────────────────────────────────────────
-  const flattenedPrompt = useMemo(
-    () => (tree ? flattenTree(tree) : null),
-    [tree]
-  );
-
   const treeDataArray: TreeData[] = useMemo(() => {
     if (!tree) return [];
     return visualTrees.map((vt, i) => ({
@@ -363,23 +357,8 @@ function App() {
       {/* ── Header ──────────────────────────────────── */}
       <header className="header">
         <div className="header-content">
-          <div className="logo-mark">
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M9 18V5l12-2v13" />
-              <circle cx="6" cy="18" r="3" />
-              <circle cx="18" cy="16" r="3" />
-            </svg>
-          </div>
-          <h1 className="logo-text">Vibe Tree</h1>
+          <img src="/ruben.jpg" alt="Ruben" className="logo-avatar" />
+          <h1 className="logo-text">Ruben</h1>
           <span className="logo-sub">multimodal music generation</span>
         </div>
       </header>
@@ -389,198 +368,202 @@ function App() {
         <section className="panel input-panel">
           <h2 className="panel-title">Input</h2>
 
-          <div className="input-group">
-            <label className="input-label">
-              Describe your vibe <span className="optional">(optional if files provided)</span>
-            </label>
-            <textarea
-              className="prompt-input"
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder="e.g. a rainy evening in Tokyo, neon reflections on wet pavement..."
-              rows={3}
-            />
-          </div>
+          <div className="input-grid">
+            {/* Top-left: Text */}
+            <div className="input-group input-grid-cell">
+              <label className="input-label">
+                Describe your vibe <span className="optional">(optional if files provided)</span>
+              </label>
+              <textarea
+                className="prompt-input"
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder="e.g. a rainy evening in Tokyo, neon reflections on wet pavement..."
+              />
+            </div>
 
-          <div className="input-group">
-            <label className="input-label">
-              Reference images{" "}
-              <span className="optional">(optional, multiple)</span>
-            </label>
-            <div
-              className={`image-upload ${imagePreviews.length > 0 ? "has-image" : ""}`}
-              onClick={() => imageInputRef.current?.click()}
-            >
-              {imagePreviews.length > 0 ? (
-                <div className="multi-preview-grid">
-                  {imagePreviews.map((src, i) => (
-                    <div key={i} className="multi-preview-item">
-                      <img
-                        src={src}
-                        alt={`Upload ${i + 1}`}
-                        className="image-preview"
-                      />
-                      <button
-                        className="image-remove"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removeImage(i);
-                        }}
-                      >
-                        x
-                      </button>
-                    </div>
-                  ))}
-                  <div className="multi-preview-add">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="12" y1="5" x2="12" y2="19" />
-                      <line x1="5" y1="12" x2="19" y2="12" />
+            {/* Top-right: Audio */}
+            <div className="input-group input-grid-cell">
+              <label className="input-label">
+                Audio reference{" "}
+                <span className="optional">(optional)</span>
+              </label>
+              <div
+                className={`media-upload media-upload--fill ${audioFile ? "has-media" : ""}`}
+                onClick={() => audioInputRef.current?.click()}
+              >
+                {audioFile ? (
+                  <div className="media-file-row">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#c1121f" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M9 18V5l12-2v13" />
+                      <circle cx="6" cy="18" r="3" />
+                      <circle cx="18" cy="16" r="3" />
                     </svg>
+                    <span className="media-file-name">{audioFile.name}</span>
+                    <button
+                      className="media-remove"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setAudioFile(null);
+                        if (audioInputRef.current) audioInputRef.current.value = "";
+                      }}
+                    >
+                      x
+                    </button>
                   </div>
-                </div>
-              ) : (
-                <div className="image-placeholder">
-                  <svg
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                    <circle cx="8.5" cy="8.5" r="1.5" />
-                    <polyline points="21 15 16 10 5 21" />
-                  </svg>
-                  <span>Click to upload images</span>
-                </div>
-              )}
-              <input
-                ref={imageInputRef}
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={handleImageUpload}
-                hidden
-              />
+                ) : (
+                  <div className="media-placeholder">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M9 18V5l12-2v13" />
+                      <circle cx="6" cy="18" r="3" />
+                      <circle cx="18" cy="16" r="3" />
+                    </svg>
+                    <span>Upload audio clip</span>
+                  </div>
+                )}
+                <input
+                  ref={audioInputRef}
+                  type="file"
+                  accept="audio/*,.mp3,.wav,.ogg,.flac,.aac"
+                  onChange={handleAudioUpload}
+                  hidden
+                />
+              </div>
             </div>
-            {imageFiles.length > 0 && (
-              <span className="image-name">
-                {imageFiles.length} image{imageFiles.length > 1 ? "s" : ""} selected
-              </span>
-            )}
-          </div>
 
-          {/* Audio upload */}
-          <div className="input-group">
-            <label className="input-label">
-              Audio reference{" "}
-              <span className="optional">(optional)</span>
-            </label>
-            <div
-              className={`media-upload ${audioFile ? "has-media" : ""}`}
-              onClick={() => audioInputRef.current?.click()}
-            >
-              {audioFile ? (
-                <div className="media-file-row">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#c1121f" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M9 18V5l12-2v13" />
-                    <circle cx="6" cy="18" r="3" />
-                    <circle cx="18" cy="16" r="3" />
-                  </svg>
-                  <span className="media-file-name">{audioFile.name}</span>
-                  <button
-                    className="media-remove"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setAudioFile(null);
-                      if (audioInputRef.current) audioInputRef.current.value = "";
-                    }}
-                  >
-                    x
-                  </button>
-                </div>
-              ) : (
-                <div className="media-placeholder">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M9 18V5l12-2v13" />
-                    <circle cx="6" cy="18" r="3" />
-                    <circle cx="18" cy="16" r="3" />
-                  </svg>
-                  <span>Upload audio clip</span>
-                </div>
-              )}
-              <input
-                ref={audioInputRef}
-                type="file"
-                accept="audio/*,.mp3,.wav,.ogg,.flac,.aac"
-                onChange={handleAudioUpload}
-                hidden
-              />
+            {/* Bottom-left: Images (horizontally scrollable) */}
+            <div className="input-group input-grid-cell">
+              <label className="input-label">
+                Reference images{" "}
+                <span className="optional">(optional, multiple)</span>
+              </label>
+              <div
+                className={`image-upload image-upload--grid ${imagePreviews.length > 0 ? "has-image" : ""}`}
+                onClick={(e) => {
+                  // Only open file picker if clicking on the placeholder or the add button
+                  const target = e.target as HTMLElement;
+                  if (!target.closest(".image-remove")) {
+                    imageInputRef.current?.click();
+                  }
+                }}
+              >
+                {imagePreviews.length > 0 ? (
+                  <div className="multi-preview-scroll">
+                    {imagePreviews.map((src, i) => (
+                      <div key={i} className="multi-preview-item">
+                        <img
+                          src={src}
+                          alt={`Upload ${i + 1}`}
+                          className="image-preview"
+                        />
+                        <button
+                          className="image-remove"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeImage(i);
+                          }}
+                        >
+                          x
+                        </button>
+                      </div>
+                    ))}
+                    <div className="multi-preview-add">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="12" y1="5" x2="12" y2="19" />
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                      </svg>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="image-placeholder">
+                    <svg
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                      <circle cx="8.5" cy="8.5" r="1.5" />
+                      <polyline points="21 15 16 10 5 21" />
+                    </svg>
+                    <span>Click to upload images</span>
+                  </div>
+                )}
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleImageUpload}
+                  hidden
+                />
+              </div>
             </div>
-          </div>
 
-          {/* Video upload */}
-          <div className="input-group">
-            <label className="input-label">
-              Video reference{" "}
-              <span className="optional">(optional)</span>
-            </label>
-            <div
-              className={`media-upload ${videoFile ? "has-media" : ""}`}
-              onClick={() => videoInputRef.current?.click()}
-            >
-              {videoFile ? (
-                <div className="media-file-row">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#669bbc" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polygon points="23 7 16 12 23 17 23 7" />
-                    <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
-                  </svg>
-                  <span className="media-file-name">{videoFile.name}</span>
-                  <button
-                    className="media-remove"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setVideoFile(null);
-                      if (videoInputRef.current) videoInputRef.current.value = "";
-                    }}
-                  >
-                    x
-                  </button>
-                </div>
-              ) : (
-                <div className="media-placeholder">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polygon points="23 7 16 12 23 17 23 7" />
-                    <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
-                  </svg>
-                  <span>Upload video clip</span>
-                </div>
-              )}
-              <input
-                ref={videoInputRef}
-                type="file"
-                accept="video/*,.mp4,.webm,.mov,.avi"
-                onChange={handleVideoUpload}
-                hidden
-              />
+            {/* Bottom-right: Video */}
+            <div className="input-group input-grid-cell">
+              <label className="input-label">
+                Video reference{" "}
+                <span className="optional">(optional)</span>
+              </label>
+              <div
+                className={`media-upload media-upload--fill ${videoFile ? "has-media" : ""}`}
+                onClick={() => videoInputRef.current?.click()}
+              >
+                {videoFile ? (
+                  <div className="media-file-row">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#669bbc" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polygon points="23 7 16 12 23 17 23 7" />
+                      <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+                    </svg>
+                    <span className="media-file-name">{videoFile.name}</span>
+                    <button
+                      className="media-remove"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setVideoFile(null);
+                        if (videoInputRef.current) videoInputRef.current.value = "";
+                      }}
+                    >
+                      x
+                    </button>
+                  </div>
+                ) : (
+                  <div className="media-placeholder">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polygon points="23 7 16 12 23 17 23 7" />
+                      <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+                    </svg>
+                    <span>Upload video clip</span>
+                  </div>
+                )}
+                <input
+                  ref={videoInputRef}
+                  type="file"
+                  accept="video/*,.mp4,.webm,.mov,.avi"
+                  onChange={handleVideoUpload}
+                  hidden
+                />
+              </div>
             </div>
           </div>
 
           <button
-            className="btn btn--primary"
+            className="btn btn--primary btn--compact"
             onClick={handleGenerate}
             disabled={generating || !hasInput}
           >
             {generating ? (
               <>
-                <span className="spinner" />
-                Generating Tree...
+                <span className="dots-loader"><span /><span /><span /></span>
+                Composing
               </>
             ) : (
-              "Generate Vibe Tree"
+              "Compose ✨"
             )}
           </button>
         </section>
@@ -618,20 +601,10 @@ function App() {
               </section>
             )}
 
-            {/* Flattened output (contained width) */}
-            {showFlattened && flattenedPrompt && (
-              <section className="panel">
-                <div className="flattened-output">
-                  <h3 className="flattened-title">ACE-Step Prompt</h3>
-                  <pre className="flattened-pre">{flattenedPrompt}</pre>
-                </div>
-              </section>
-            )}
-
             {/* Generate Music button */}
-            <section className="panel" style={{ textAlign: "center" }}>
-              <div style={{ marginBottom: 16 }}>
-                <label className="input-label" style={{ display: "block", marginBottom: 8 }}>
+            <section className="panel" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
+              <div>
+                <label className="input-label" style={{ display: "block", marginBottom: 8, textAlign: "center" }}>
                   Song Duration
                 </label>
                 <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "center" }}>
@@ -647,18 +620,17 @@ function App() {
                 </div>
               </div>
               <button
-                className="btn btn--primary"
+                className="btn btn--primary btn--compact"
                 onClick={handleMusicGenerate}
                 disabled={generatingMusic}
-                style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
               >
                 {generatingMusic ? (
                   <>
-                    <span className="spinner" />
-                    Generating Music...
+                    <span className="dots-loader"><span /><span /><span /></span>
+                    Conducting
                   </>
                 ) : (
-                  "Generate Music"
+                  "Conduct 🎵"
                 )}
               </button>
             </section>
@@ -673,11 +645,11 @@ function App() {
               <audio controls src={audioUrl} className="audio-player" />
             )}
             {generatingMusic && !audioUrl && (
-              <p style={{ opacity: 0.6 }}>Waiting for ACE-Step to generate audio...</p>
+              <p style={{ opacity: 0.6 }}>Conducting...</p>
             )}
             {musicDescriptions && (
               <div className="music-descriptions" style={{ marginTop: 16 }}>
-                <h3 className="flattened-title">ACE-Step Analysis</h3>
+                <h3 className="flattened-title">Musician's Analysis</h3>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 24px", fontSize: 14 }}>
                   {musicDescriptions.bpm != null && (
                     <>
@@ -712,7 +684,7 @@ function App() {
                 </div>
                 {!!musicDescriptions.prompt && (
                   <div style={{ marginTop: 12 }}>
-                    <span style={{ opacity: 0.6, fontSize: 13 }}>LM Caption</span>
+                    <span style={{ opacity: 0.6, fontSize: 13 }}>Musician's Impression</span>
                     <pre className="flattened-pre" style={{ marginTop: 4 }}>{String(musicDescriptions.prompt)}</pre>
                   </div>
                 )}
