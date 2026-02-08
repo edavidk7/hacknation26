@@ -1,0 +1,45 @@
+name: vibe-tree
+region: nyc
+
+services:
+  - name: api
+    source_dir: python-backend
+    github:
+      repo: edavidk7/hacknation26  # Update with your actual GitHub org/repo
+      branch: main
+      deploy_on_push: true
+    environment_slug: python
+    instance_size_slug: professional-xs
+    instance_count: 1
+    http_port: 8000
+    run_command: python api_server.py
+    build_command: pip install -r requirements.txt
+    envs:
+      - key: OPENROUTER_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: ACESTEP_API_URL
+        scope: RUN_TIME
+        value: https://abox-noneruptive-felisha.ngrok-free.dev
+      - key: ACESTEP_API_USER
+        scope: RUN_TIME
+        type: SECRET
+      - key: ACESTEP_API_PASS
+        scope: RUN_TIME
+        type: SECRET
+    routes:
+      - path: /api
+        preserve_path_prefix: true
+
+static_sites:
+  - name: ui
+    source_dir: ui
+    github:
+      repo: edavidk7/hacknation26  # Update with your actual GitHub org/repo
+      branch: main
+      deploy_on_push: true
+    build_command: npm install && npm run build
+    output_dir: dist
+    catchall_document: index.html
+    routes:
+      - path: /

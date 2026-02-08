@@ -16,6 +16,9 @@ import type { TreeData } from "./components/TreeStack";
 import DetailPanel from "./components/DetailPanel";
 import "./App.css";
 
+// API base URL: empty string means same-origin (production), or override via env var (dev)
+const API_BASE = import.meta.env.VITE_API_URL ?? "";
+
 function App() {
   // ── Input state ────────────────────────────────────
   const [prompt, setPrompt] = useState("make it feel lonely but hopeful");
@@ -116,7 +119,7 @@ function App() {
       if (videoFile) formData.append("files", videoFile);
 
       // Step 1: Submit generation request
-      const generateRes = await fetch("http://localhost:8000/api/generate", {
+      const generateRes = await fetch(`${API_BASE}/api/generate`, {
         method: "POST",
         body: formData,
       });
@@ -137,7 +140,7 @@ function App() {
         await new Promise((r) => setTimeout(r, 1000)); // Poll every 1 second
 
         const statusRes = await fetch(
-          `http://localhost:8000/api/status/${job_id}`
+          `${API_BASE}/api/status/${job_id}`
         );
         if (!statusRes.ok) {
           throw new Error(`Status check failed: ${statusRes.status}`);
@@ -253,7 +256,7 @@ function App() {
       formData.append("vibe_tree", JSON.stringify(tree));
       if (audioFile) formData.append("reference_audio", audioFile);
 
-      const res = await fetch("http://localhost:8000/api/generate-music", {
+      const res = await fetch(`${API_BASE}/api/generate-music`, {
         method: "POST",
         body: formData,
       });
@@ -270,14 +273,14 @@ function App() {
         await new Promise((r) => setTimeout(r, 2000));
 
         const statusRes = await fetch(
-          `http://localhost:8000/api/status/${job_id}`
+          `${API_BASE}/api/status/${job_id}`
         );
         if (!statusRes.ok) throw new Error(`Status check failed: ${statusRes.status}`);
         const job = await statusRes.json();
 
         if (job.status === "completed") {
           if (!job.result) throw new Error("No result returned");
-          setAudioUrl(`http://localhost:8000${job.result.audio_url}`);
+          setAudioUrl(`${API_BASE}${job.result.audio_url}`);
           setMusicDescriptions(job.result.descriptions);
           completed = true;
         } else if (job.status === "failed") {
