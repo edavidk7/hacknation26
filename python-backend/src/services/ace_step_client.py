@@ -240,7 +240,7 @@ def vibe_tree_to_ace_step_params(
     }
 
     if duration is not None:
-        params["audio_duration"] = min(float(duration), 120)
+        params["audio_duration"] = min(float(duration), 240)
     else:
         params["audio_duration"] = 30
 

@@ -44,6 +44,7 @@ function App() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [generatingMusic, setGeneratingMusic] = useState(false);
   const [musicDescriptions, setMusicDescriptions] = useState<Record<string, unknown> | null>(null);
+  const [songDuration, setSongDuration] = useState<number>(30);
 
   // ── Derived ────────────────────────────────────────
   const flattenedPrompt = useMemo(
@@ -252,8 +253,11 @@ function App() {
     setMusicDescriptions(null);
     setAudioUrl(null);
     try {
+      const treeWithDuration = structuredClone(tree);
+      treeWithDuration.root.global.duration_seconds = songDuration;
+      
       const formData = new FormData();
-      formData.append("vibe_tree", JSON.stringify(tree));
+      formData.append("vibe_tree", JSON.stringify(treeWithDuration));
       if (audioFile) formData.append("reference_audio", audioFile);
 
       const res = await fetch(`${API_BASE}/api/generate-music`, {
@@ -621,6 +625,22 @@ function App() {
 
             {/* Generate Music button */}
             <section className="panel" style={{ textAlign: "center" }}>
+              <div style={{ marginBottom: 16 }}>
+                <label className="input-label" style={{ display: "block", marginBottom: 8 }}>
+                  Song Duration
+                </label>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "center" }}>
+                  <input
+                    type="range"
+                    min="10"
+                    max="240"
+                    value={songDuration}
+                    onChange={(e) => setSongDuration(parseInt(e.target.value, 10))}
+                    style={{ flex: 1, maxWidth: 200 }}
+                  />
+                  <span style={{ minWidth: 60, textAlign: "left" }}>{songDuration}s</span>
+                </div>
+              </div>
               <button
                 className="btn btn--primary"
                 onClick={handleMusicGenerate}
@@ -635,13 +655,6 @@ function App() {
                 ) : (
                   "Generate Music"
                 )}
-              </button>
-              <button
-                className="btn btn--ghost"
-                onClick={() => setShowFlattened((v) => !v)}
-                style={{ marginLeft: 8 }}
-              >
-                {showFlattened ? "Hide Prompt" : "Show Prompt"}
               </button>
             </section>
           </>
