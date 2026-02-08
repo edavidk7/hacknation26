@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useCallback } from "react";
+import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import type { VibeTree, VisualNode, Section } from "./utils/types";
 import {
   sectionToVisualTree,
@@ -12,6 +12,7 @@ import {
 import { transformSongCharacteristicsToVibeTree } from "./utils/transform";
 import { createHistoryEntry, type HistoryEntry } from "./utils/history";
 import { diffTrees, type NodeDiff } from "./utils/treeDiff";
+import { flattenTree } from "./utils/flatten";
 import TreeStack from "./components/TreeStack";
 import type { TreeData } from "./components/TreeStack";
 import DetailPanel from "./components/DetailPanel";
@@ -51,6 +52,73 @@ function App() {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [currentHistoryId, setCurrentHistoryId] = useState<string | null>(null);
   const [treeDiffs, setTreeDiffs] = useState<Map<string, NodeDiff[]>>(new Map());
+
+  // ── Custom audio player state ─────────────────────
+  const playerRef = useRef<HTMLAudioElement>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+
+  useEffect(() => {
+    const audio = playerRef.current;
+    if (!audio) return;
+
+    const onTimeUpdate = () => setCurrentTime(audio.currentTime);
+    const onDurationChange = () => setDuration(audio.duration || 0);
+    const onEnded = () => setIsPlaying(false);
+    const onPlay = () => setIsPlaying(true);
+    const onPause = () => setIsPlaying(false);
+
+    audio.addEventListener("timeupdate", onTimeUpdate);
+    audio.addEventListener("durationchange", onDurationChange);
+    audio.addEventListener("ended", onEnded);
+    audio.addEventListener("play", onPlay);
+    audio.addEventListener("pause", onPause);
+
+    return () => {
+      audio.removeEventListener("timeupdate", onTimeUpdate);
+      audio.removeEventListener("durationchange", onDurationChange);
+      audio.removeEventListener("ended", onEnded);
+      audio.removeEventListener("play", onPlay);
+      audio.removeEventListener("pause", onPause);
+    };
+  }, [audioUrl]);
+
+  const togglePlay = () => {
+    const audio = playerRef.current;
+    if (!audio) return;
+    if (isPlaying) {
+      audio.pause();
+    } else {
+      audio.play();
+    }
+  };
+
+  const seekTo = (e: React.MouseEvent<HTMLDivElement>) => {
+    const audio = playerRef.current;
+    if (!audio || !duration) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    audio.currentTime = pct * duration;
+  };
+
+  const formatTime = (s: number) => {
+    if (!isFinite(s)) return "0:00";
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return `${m}:${sec.toString().padStart(2, "0")}`;
+  };
+
+  const handleDownload = () => {
+    if (!audioUrl) return;
+    const a = document.createElement("a");
+    a.href = audioUrl;
+    a.download = `ruben-${Date.now()}.mp3`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
   // ── Derived ────────────────────────────────────────
   const treeDataArray: TreeData[] = useMemo(() => {
     if (!tree) return [];
@@ -404,6 +472,33 @@ function App() {
 
   return (
     <div className="app">
+      {/* ── Ambient background ─────────────────────── */}
+      <div className="ambient-bg" aria-hidden="true">
+        <div className="aurora aurora--1" />
+        <div className="aurora aurora--2" />
+        <div className="aurora aurora--3" />
+        <div className="aurora aurora--4" />
+        <div className="aurora aurora--5" />
+        <div className="aurora aurora--6" />
+        <div className="aurora aurora--7" />
+        <div className="aurora aurora--8" />
+        <div className="star star--1" />
+        <div className="star star--2" />
+        <div className="star star--3" />
+        <div className="star star--4" />
+        <div className="star star--5" />
+        <div className="star star--6" />
+        <div className="star star--7" />
+        <div className="star star--8" />
+        <div className="star star--9" />
+        <div className="star star--10" />
+        <div className="star star--11" />
+        <div className="star star--12" />
+        <div className="star star--13" />
+        <div className="star star--14" />
+        <div className="star star--15" />
+      </div>
+
       {/* ── History Sidebar ─────────────────────────── */}
       <HistorySidebar
         history={history}
@@ -660,21 +755,24 @@ function App() {
             )}
 
             {/* Generate Music button */}
-            <section className="panel" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
-              <div>
-                <label className="input-label" style={{ display: "block", marginBottom: 8, textAlign: "center" }}>
+            <section className="panel conduct-panel">
+              <div className="duration-control">
+                <label className="input-label duration-label">
                   Song Duration
                 </label>
-                <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "center" }}>
+                <div className="duration-slider-row">
+                  <span className="duration-bound">10s</span>
                   <input
                     type="range"
+                    className="duration-slider"
                     min="10"
                     max="240"
+                    step="1"
                     value={songDuration}
-                    onChange={(e) => setSongDuration(parseInt(e.target.value, 10))}
-                    style={{ flex: 1, maxWidth: 200 }}
+                    onChange={(e) => setSongDuration(parseFloat(e.target.value))}
                   />
-                  <span style={{ width: 50, textAlign: "center" }}>{songDuration}s</span>
+                  <span className="duration-bound">240s</span>
+                  <span className="duration-value">{songDuration}s</span>
                 </div>
               </div>
               <button
@@ -700,50 +798,88 @@ function App() {
           <section className="panel audio-panel">
             <h2 className="panel-title">Output</h2>
             {audioUrl && (
-              <audio controls src={audioUrl} className="audio-player" />
+              <>
+                <audio ref={playerRef} src={audioUrl} preload="metadata" />
+                <div className="custom-player">
+                  <button className="player-play-btn" onClick={togglePlay}>
+                    {isPlaying ? (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                        <rect x="6" y="4" width="4" height="16" rx="1" />
+                        <rect x="14" y="4" width="4" height="16" rx="1" />
+                      </svg>
+                    ) : (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                        <polygon points="6,4 20,12 6,20" />
+                      </svg>
+                    )}
+                  </button>
+                  <span className="player-time">{formatTime(currentTime)}</span>
+                  <div className="player-track" onClick={seekTo}>
+                    <div
+                      className="player-track-fill"
+                      style={{ width: duration ? `${(currentTime / duration) * 100}%` : "0%" }}
+                    />
+                    <div
+                      className="player-track-thumb"
+                      style={{ left: duration ? `${(currentTime / duration) * 100}%` : "0%" }}
+                    />
+                  </div>
+                  <span className="player-time">{formatTime(duration)}</span>
+                  <button className="player-download-btn" onClick={handleDownload} title="Download">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                  </button>
+                </div>
+              </>
             )}
             {generatingMusic && !audioUrl && (
-              <p style={{ opacity: 0.6 }}>Conducting...</p>
+              <p className="conducting-text">
+                <span className="dots-loader"><span /><span /><span /></span>
+                Conducting
+              </p>
             )}
             {musicDescriptions && (
-              <div className="music-descriptions" style={{ marginTop: 16 }}>
+              <div className="music-descriptions">
                 <h3 className="flattened-title">Musician's Analysis</h3>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 24px", fontSize: 14 }}>
+                <div className="analysis-grid">
                   {musicDescriptions.bpm != null && (
-                    <>
-                      <span style={{ opacity: 0.6 }}>BPM</span>
-                      <span>{String(musicDescriptions.bpm)}</span>
-                    </>
+                    <div className="analysis-item">
+                      <span className="analysis-label">BPM</span>
+                      <span className="analysis-value">{String(musicDescriptions.bpm)}</span>
+                    </div>
                   )}
                   {!!musicDescriptions.keyscale && (
-                    <>
-                      <span style={{ opacity: 0.6 }}>Key</span>
-                      <span>{String(musicDescriptions.keyscale)}</span>
-                    </>
+                    <div className="analysis-item">
+                      <span className="analysis-label">Key</span>
+                      <span className="analysis-value">{String(musicDescriptions.keyscale)}</span>
+                    </div>
                   )}
                   {!!musicDescriptions.timesignature && (
-                    <>
-                      <span style={{ opacity: 0.6 }}>Time Signature</span>
-                      <span>{String(musicDescriptions.timesignature)}</span>
-                    </>
+                    <div className="analysis-item">
+                      <span className="analysis-label">Time Signature</span>
+                      <span className="analysis-value">{String(musicDescriptions.timesignature)}</span>
+                    </div>
                   )}
                   {musicDescriptions.duration != null && (
-                    <>
-                      <span style={{ opacity: 0.6 }}>Duration</span>
-                      <span>{String(musicDescriptions.duration)}s</span>
-                    </>
+                    <div className="analysis-item">
+                      <span className="analysis-label">Duration</span>
+                      <span className="analysis-value">{String(musicDescriptions.duration)}s</span>
+                    </div>
                   )}
                   {!!musicDescriptions.genres && (
-                    <>
-                      <span style={{ opacity: 0.6 }}>Genres</span>
-                      <span>{String(musicDescriptions.genres)}</span>
-                    </>
+                    <div className="analysis-item">
+                      <span className="analysis-label">Genres</span>
+                      <span className="analysis-value">{String(musicDescriptions.genres)}</span>
+                    </div>
                   )}
                 </div>
                 {!!musicDescriptions.prompt && (
-                  <div style={{ marginTop: 12 }}>
-                    <span style={{ opacity: 0.6, fontSize: 13 }}>Musician's Impression</span>
-                    <pre className="flattened-pre" style={{ marginTop: 4 }}>{String(musicDescriptions.prompt)}</pre>
+                  <div className="impression-section">
+                    <span className="impression-label">Musician's Impression</span>
+                    <pre className="flattened-pre">{String(musicDescriptions.prompt)}</pre>
                   </div>
                 )}
               </div>
