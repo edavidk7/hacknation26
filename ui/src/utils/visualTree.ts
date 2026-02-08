@@ -2,24 +2,19 @@ import type { Section, VisualNode } from "./types";
 import { nodeId } from "./types";
 
 /**
- * Create a blank Section with sensible defaults.
+ * Create a blank Section with no defaults.
  */
 export function createEmptySection(name: string): Section {
   return {
     name,
     weight: 0.25,
     branches: {
-      mood: { primary: "new vibe", nuances: [] },
-      genre: { primary: "ambient", influences: [] },
+      mood: null,
+      genre: null,
       instruments: [],
-      texture: { density: "sparse", movement: "static", space: "open" },
+      texture: null,
       sonic_details: [],
-      metadata: {
-        tempo_feel: "",
-        suggested_bpm: null,
-        key: null,
-        time_signature: null,
-      },
+      metadata: {},
     },
   };
 }
@@ -40,80 +35,97 @@ export function emptyVisualTree(vibe: string): VisualNode {
 /**
  * Convert a Section into a visual tree for rendering.
  * Root = section name, children = mood, genre, instruments, texture, sonic details.
+ * Only includes branches that have actual values from the agent.
  */
 export function sectionToVisualTree(section: Section): VisualNode {
   const b = section.branches;
+  const children: VisualNode[] = [];
 
   // Mood branch
-  const moodChildren: VisualNode[] = b.mood.nuances.map((n) => ({
-    id: nodeId(),
-    label: n,
-    kind: "nuance" as const,
-    children: [],
-  }));
-  const moodNode: VisualNode = {
-    id: nodeId(),
-    label: b.mood.primary,
-    kind: "mood",
-    children: moodChildren,
-  };
+  if (b.mood) {
+    const moodChildren: VisualNode[] = (b.mood.nuances || []).map((n) => ({
+      id: nodeId(),
+      label: n,
+      kind: "nuance" as const,
+      children: [],
+    }));
+    const moodNode: VisualNode = {
+      id: nodeId(),
+      label: b.mood.primary,
+      kind: "mood",
+      children: moodChildren,
+    };
+    children.push(moodNode);
+  }
 
   // Genre branch
-  const genreChildren: VisualNode[] = b.genre.influences.map((inf) => ({
-    id: nodeId(),
-    label: inf,
-    kind: "influence" as const,
-    children: [],
-  }));
-  const genreNode: VisualNode = {
-    id: nodeId(),
-    label: b.genre.primary,
-    kind: "genre",
-    children: genreChildren,
-  };
+  if (b.genre) {
+    const genreChildren: VisualNode[] = (b.genre.influences || []).map((inf) => ({
+      id: nodeId(),
+      label: inf,
+      kind: "influence" as const,
+      children: [],
+    }));
+    const genreNode: VisualNode = {
+      id: nodeId(),
+      label: b.genre.primary,
+      kind: "genre",
+      children: genreChildren,
+    };
+    children.push(genreNode);
+  }
 
   // Instruments branch
-  const instChildren: VisualNode[] = b.instruments.map((inst) => ({
-    id: nodeId(),
-    label: inst.name,
-    kind: "instrument" as const,
-    children: [],
-  }));
-  const instrumentsNode: VisualNode = {
-    id: nodeId(),
-    label: "instruments",
-    kind: "instruments",
-    children: instChildren,
-  };
+  if (b.instruments && b.instruments.length > 0) {
+    const instChildren: VisualNode[] = b.instruments.map((inst) => ({
+      id: nodeId(),
+      label: inst.name,
+      kind: "instrument" as const,
+      children: [],
+    }));
+    const instrumentsNode: VisualNode = {
+      id: nodeId(),
+      label: "instruments",
+      kind: "instruments",
+      children: instChildren,
+    };
+    children.push(instrumentsNode);
+  }
 
   // Texture branch
-  const textureNode: VisualNode = {
-    id: nodeId(),
-    label: `${b.texture.density} · ${b.texture.movement} · ${b.texture.space}`,
-    kind: "texture",
-    children: [],
-  };
+  if (b.texture) {
+    const textureNode: VisualNode = {
+      id: nodeId(),
+      label: `${b.texture.density} · ${b.texture.movement} · ${b.texture.space}`,
+      kind: "texture",
+      children: [],
+    };
+    children.push(textureNode);
+  }
 
   // Sonic details branch
-  const sonicChildren: VisualNode[] = b.sonic_details.map((d) => ({
-    id: nodeId(),
-    label: d,
-    kind: "detail" as const,
-    children: [],
-  }));
-  const sonicNode: VisualNode = {
-    id: nodeId(),
-    label: "sonic details",
-    kind: "sonic",
-    children: sonicChildren,
-  };
+  if (b.sonic_details && b.sonic_details.length > 0) {
+    const sonicChildren: VisualNode[] = b.sonic_details.map((d) => ({
+      id: nodeId(),
+      label: d,
+      kind: "detail" as const,
+      children: [],
+    }));
+    const sonicNode: VisualNode = {
+      id: nodeId(),
+      label: "sonic details",
+      kind: "sonic",
+      children: sonicChildren,
+    };
+    children.push(sonicNode);
+  }
 
-  // Root = section vibe (mood primary)
+  // Root = section name or "untitled"
   return {
     id: nodeId(),
-    label: b.mood.primary,
+    label: section.name || "untitled",
     kind: "section",
-    children: [moodNode, genreNode, instrumentsNode, textureNode, sonicNode],
+    children,
   };
 }
 
@@ -126,24 +138,28 @@ export function visualTreeToSection(
   original: Section
 ): Section {
   const section = structuredClone(original);
-  // Root label is the root vibe (mood primary), not the section name
-  section.branches.mood.primary = node.label;
 
   for (const child of node.children) {
     switch (child.kind) {
       case "mood":
+        if (!section.branches.mood) {
+          section.branches.mood = { primary: "", nuances: [] };
+        }
         section.branches.mood.primary = child.label;
         section.branches.mood.nuances = child.children.map((c) => c.label);
         break;
       case "genre":
+        if (!section.branches.genre) {
+          section.branches.genre = { primary: "", influences: [] };
+        }
         section.branches.genre.primary = child.label;
         section.branches.genre.influences = child.children.map((c) => c.label);
         break;
       case "instruments":
         section.branches.instruments = child.children.map((c, i) => ({
           name: c.label,
-          role: original.branches.instruments[i]?.role ?? "texture",
-          character: original.branches.instruments[i]?.character ?? "",
+          role: original.branches.instruments?.[i]?.role ?? "texture",
+          character: original.branches.instruments?.[i]?.character ?? "",
         }));
         break;
       case "texture":

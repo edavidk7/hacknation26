@@ -31,66 +31,36 @@ export function vibeTreeToPrompt(tree: VibeTree): string {
     lines.push(`### ${section.name.charAt(0).toUpperCase() + section.name.slice(1)}`);
     lines.push("");
 
-    // Mood
-    if (b.mood.primary) {
-      lines.push(`**Mood:** ${b.mood.primary}`);
-      if (b.mood.nuances && b.mood.nuances.length > 0) {
-        lines.push(`- Nuances: ${b.mood.nuances.join(", ")}`);
+    // Dynamically iterate through all properties in branches
+    for (const [key, value] of Object.entries(b)) {
+      if (value === null || value === undefined || (Array.isArray(value) && value.length === 0)) {
+        continue;
       }
-      lines.push("");
-    }
 
-    // Genre
-    if (b.genre.primary) {
-      lines.push(`**Genre:** ${b.genre.primary}`);
-      if (b.genre.influences && b.genre.influences.length > 0) {
-        lines.push(`- Influences: ${b.genre.influences.join(", ")}`);
-      }
-      lines.push("");
-    }
+      // Format the key as a title
+      const title = key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, " ");
+      lines.push(`**${title}:**`);
 
-    // Instruments
-    if (b.instruments && b.instruments.length > 0) {
-      lines.push("**Instruments:**");
-      for (const inst of b.instruments) {
-        let instLine = `- ${inst.name}`;
-        if (inst.role) {
-          instLine += ` (${inst.role})`;
+      if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+        lines.push(value.toString());
+      } else if (Array.isArray(value)) {
+        for (const item of value) {
+          if (typeof item === "object") {
+            // For object items, format nicely
+            const itemStr = Object.entries(item as Record<string, unknown>)
+              .map(([k, v]) => `${k}: ${v}`)
+              .join(", ");
+            lines.push(`- ${itemStr}`);
+          } else {
+            lines.push(`- ${item}`);
+          }
         }
-        if (inst.character) {
-          instLine += `: ${inst.character}`;
+      } else if (typeof value === "object") {
+        // For nested objects, format as key-value pairs
+        for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+          lines.push(`- ${k}: ${v}`);
         }
-        lines.push(instLine);
       }
-      lines.push("");
-    }
-
-    // Texture
-    if (b.texture) {
-      lines.push("**Texture:**");
-      lines.push(`- Density: ${b.texture.density}`);
-      lines.push(`- Movement: ${b.texture.movement}`);
-      lines.push(`- Space: ${b.texture.space}`);
-      lines.push("");
-    }
-
-    // Sonic Details
-    if (b.sonic_details && b.sonic_details.length > 0) {
-      lines.push("**Sonic Details:**");
-      for (const detail of b.sonic_details) {
-        lines.push(`- ${detail}`);
-      }
-      lines.push("");
-    }
-
-    // Metadata
-    const m = b.metadata;
-    if (m.tempo_feel || m.suggested_bpm || m.key || m.time_signature) {
-      lines.push("**Metadata:**");
-      if (m.tempo_feel) lines.push(`- Tempo Feel: ${m.tempo_feel}`);
-      if (m.suggested_bpm) lines.push(`- BPM: ${m.suggested_bpm}`);
-      if (m.key) lines.push(`- Key: ${m.key}`);
-      if (m.time_signature) lines.push(`- Time Signature: ${m.time_signature}`);
       lines.push("");
     }
   }
@@ -128,10 +98,18 @@ export function vibeTreeToCompactPrompt(tree: VibeTree): string {
 
   for (const section of root.sections) {
     const b = section.branches;
-    if (b.mood.primary) allMoods.add(b.mood.primary);
-    if (b.genre.primary) allGenres.add(b.genre.primary);
-    if (b.instruments) {
-      b.instruments.forEach((i) => allInstruments.add(i.name));
+    if (b.mood && typeof b.mood === "object" && "primary" in b.mood && b.mood.primary) {
+      allMoods.add(b.mood.primary as string);
+    }
+    if (b.genre && typeof b.genre === "object" && "primary" in b.genre && b.genre.primary) {
+      allGenres.add(b.genre.primary as string);
+    }
+    if (b.instruments && Array.isArray(b.instruments)) {
+      (b.instruments as unknown[]).forEach((i: unknown) => {
+        if (typeof i === "object" && i !== null && "name" in i) {
+          allInstruments.add((i as {name: unknown}).name as string);
+        }
+      });
     }
   }
 

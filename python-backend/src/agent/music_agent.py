@@ -17,6 +17,7 @@ from src.agent.debug import (
     trace_system_prompt,
     trace_usage,
 )
+from src.agent.mock_tree import get_mock_vibe_tree
 from src.agent.prompts import SYSTEM_PROMPT
 from src.models.song_tree import SongCharacteristics
 from src.preprocessing.video import extract_keyframes
@@ -173,6 +174,7 @@ async def generate_music_prompt(
     verbose: bool = False,
     debug: bool = False,
     disable_web_search: bool = False,
+    use_mock: bool = False,
 ) -> SongCharacteristics:
     """Main entry point: analyze multimodal inputs and produce structured song characteristics.
 
@@ -184,6 +186,7 @@ async def generate_music_prompt(
         verbose: If True, log each step of the agent loop to stderr.
         debug: If True, log full debug trace of context and tool calls.
         disable_web_search: If True, disable web search tool in the agent.
+        use_mock: If True, return mock vibe tree data without calling the model.
 
     Returns:
         A tree-structured SongCharacteristics object ready for frontend editing and markdown conversion.
@@ -192,6 +195,11 @@ async def generate_music_prompt(
     logging.basicConfig(
         level=log_level, format="%(levelname)s %(name)s: %(message)s"
     )
+    
+    # Return mock data if requested
+    if use_mock:
+        log.info("Using mock vibe tree data")
+        return get_mock_vibe_tree()
     
     # Track overall execution time
     overall_start = time.time()

@@ -1,43 +1,7 @@
 // ── Vibe Tree Schema Types ──────────────────────────────
-// Matches the JSON schema from vibe_tree.md
+// Arbitrary structure - branches can contain any properties
 
-export interface Instrument {
-  name: string;
-  role: string;
-  character: string;
-}
-
-export interface Mood {
-  primary: string;
-  nuances: string[];
-}
-
-export interface Genre {
-  primary: string;
-  influences: string[];
-}
-
-export interface Texture {
-  density: "sparse" | "moderate" | "dense";
-  movement: "static" | "slow-evolving" | "dynamic";
-  space: "intimate" | "open" | "vast";
-}
-
-export interface SectionMetadata {
-  tempo_feel: string;
-  suggested_bpm: number | null;
-  key: string | null;
-  time_signature: string | null;
-}
-
-export interface SectionBranches {
-  mood: Mood;
-  genre: Genre;
-  instruments: Instrument[];
-  texture: Texture;
-  sonic_details: string[];
-  metadata: SectionMetadata;
-}
+export type SectionBranches = Record<string, unknown>;
 
 export interface Section {
   name: string;
@@ -46,14 +10,14 @@ export interface Section {
 }
 
 export interface GlobalSettings {
-  overall_arc: string;
-  tags: string[];
-  duration_seconds: number;
+  overall_arc?: string;
+  tags?: string[];
+  duration_seconds?: number;
 }
 
 export interface VibeTreeRoot {
   concept: string;
-  image_interpretation: string | null;
+  image_interpretation?: string | null;
   sections: Section[];
   global: GlobalSettings;
 }

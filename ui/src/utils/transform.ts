@@ -2,11 +2,6 @@ import type {
   VibeTree,
   Section,
   SectionBranches,
-  Mood,
-  Genre,
-  Texture,
-  Instrument,
-  SectionMetadata,
 } from "./types";
 
 /**
@@ -153,12 +148,12 @@ function parseSectionNode(node: SongNode, index: number): Section {
  */
 function parseBranches(children: SongNode[]): SectionBranches {
   const branches: SectionBranches = {
-    mood: createDefaultMood(),
-    genre: createDefaultGenre(),
+    mood: null,
+    genre: null,
     instruments: [],
-    texture: createDefaultTexture(),
+    texture: null,
     sonic_details: [],
-    metadata: createDefaultMetadata(),
+    metadata: {},
   };
 
   // Flatten all text content from children for sonic details
@@ -181,7 +176,8 @@ function parseBranches(children: SongNode[]): SectionBranches {
       nameLower.includes("key") ||
       nameLower.includes("metadata")
     ) {
-      Object.assign(branches.metadata, parseMetadata(node));
+      const parsed = parseMetadata(node);
+      branches.metadata = { ...branches.metadata as Record<string, unknown>, ...parsed };
     } else {
       // Collect as sonic detail
       const detailStr = formatNodeAsDetail(node);
@@ -217,12 +213,12 @@ function formatNodeAsDetail(node: SongNode): string {
 /**
  * Parse mood from a SongNode.
  */
-function parseMood(node: SongNode): Mood {
+function parseMood(node: SongNode) {
   const value = extractStringValue(node.value);
   const nuances = node.children?.map((c) => c.name) || [];
 
   return {
-    primary: value || node.name || "mysterious",
+    primary: value || node.name,
     nuances,
   };
 }
@@ -230,12 +226,12 @@ function parseMood(node: SongNode): Mood {
 /**
  * Parse genre from a SongNode.
  */
-function parseGenre(node: SongNode): Genre {
+function parseGenre(node: SongNode) {
   const value = extractStringValue(node.value);
   const influences = node.children?.map((c) => c.name) || [];
 
   return {
-    primary: value || node.name || "ambient",
+    primary: value || node.name,
     influences,
   };
 }
@@ -243,7 +239,7 @@ function parseGenre(node: SongNode): Genre {
 /**
  * Parse instruments from a SongNode.
  */
-function parseInstruments(node: SongNode): Instrument[] {
+function parseInstruments(node: SongNode) {
   if (node.children && node.children.length > 0) {
     return node.children.map((child) => ({
       name: child.name,
@@ -268,32 +264,39 @@ function parseInstruments(node: SongNode): Instrument[] {
 /**
  * Parse texture from a SongNode.
  */
-function parseTexture(node: SongNode): Texture {
-  const density =
-    ((node.metadata?.density as "sparse" | "moderate" | "dense") || "moderate");
-  const movement =
-    ((node.metadata?.movement as "static" | "slow-evolving" | "dynamic") ||
-      "slow-evolving");
-  const space = ((node.metadata?.space as "intimate" | "open" | "vast") || "open");
+function parseTexture(node: SongNode) {
+  const density = node.metadata?.density as "sparse" | "moderate" | "dense" | undefined;
+  const movement = node.metadata?.movement as "static" | "slow-evolving" | "dynamic" | undefined;
+  const space = node.metadata?.space as "intimate" | "open" | "vast" | undefined;
 
-  return { density, movement, space };
+  // Only include fields that are actually provided
+  const texture: Record<string, string> = {};
+  if (density) texture.density = density;
+  if (movement) texture.movement = movement;
+  if (space) texture.space = space;
+  
+  return Object.keys(texture).length > 0 ? texture : null;
 }
 
 /**
  * Parse metadata from a SongNode.
  */
-function parseMetadata(node: SongNode): Partial<SectionMetadata> {
-  const metadata: Partial<SectionMetadata> = {};
+function parseMetadata(node: SongNode) {
+  const metadata: Record<string, unknown> = {};
   const nameLower = node.name.toLowerCase();
 
   if (nameLower.includes("tempo")) {
-    metadata.tempo_feel = extractStringValue(node.value) || "moderate";
+    const value = extractStringValue(node.value);
+    if (value) metadata.tempo_feel = value;
   } else if (nameLower.includes("bpm")) {
-    metadata.suggested_bpm = extractNumberValue(node.value) || null;
+    const value = extractNumberValue(node.value);
+    if (value) metadata.suggested_bpm = value;
   } else if (nameLower.includes("key")) {
-    metadata.key = extractStringValue(node.value) || null;
+    const value = extractStringValue(node.value);
+    if (value) metadata.key = value;
   } else if (nameLower.includes("time")) {
-    metadata.time_signature = extractStringValue(node.value) || null;
+    const value = extractStringValue(node.value);
+    if (value) metadata.time_signature = value;
   }
 
   return metadata;
@@ -324,62 +327,21 @@ function extractNumberValue(value: unknown): number | null {
 }
 
 /**
- * Create a default empty section.
+ * Create an empty section with no defaults.
  */
 export function createEmptySection(name: string): Section {
   return {
     name,
     weight: 1 / 3,
     branches: {
-      mood: createDefaultMood(),
-      genre: createDefaultGenre(),
+      mood: null,
+      genre: null,
       instruments: [],
-      texture: createDefaultTexture(),
+      texture: null,
       sonic_details: [],
-      metadata: createDefaultMetadata(),
+      metadata: {},
     },
   };
 }
 
-/**
- * Create default mood.
- */
-function createDefaultMood(): Mood {
-  return {
-    primary: "neutral",
-    nuances: [],
-  };
-}
 
-/**
- * Create default genre.
- */
-function createDefaultGenre(): Genre {
-  return {
-    primary: "ambient",
-    influences: [],
-  };
-}
-
-/**
- * Create default texture.
- */
-function createDefaultTexture(): Texture {
-  return {
-    density: "moderate",
-    movement: "slow-evolving",
-    space: "open",
-  };
-}
-
-/**
- * Create default metadata.
- */
-function createDefaultMetadata(): SectionMetadata {
-  return {
-    tempo_feel: "moderate",
-    suggested_bpm: null,
-    key: null,
-    time_signature: null,
-  };
-}

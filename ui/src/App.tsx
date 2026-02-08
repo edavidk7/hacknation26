@@ -39,8 +39,10 @@ function App() {
   const [activeSection, setActiveSection] = useState(0);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
-  // ── Audio state ────────────────────────────────────
-  const [audioUrl] = useState<string | null>(null);
+  // ── Audio / music generation state ─────────────────
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [generatingMusic, setGeneratingMusic] = useState(false);
+  const [musicDescriptions, setMusicDescriptions] = useState<Record<string, unknown> | null>(null);
 
   // ── Derived ────────────────────────────────────────
   const flattenedPrompt = useMemo(
@@ -158,7 +160,11 @@ function App() {
           const vTrees = vibeTree.root.sections.map((s, i) =>
             i === 1
               ? sectionToVisualTree(s)
-              : emptyVisualTree(s.branches.mood.primary)
+              : emptyVisualTree(
+                  s.branches.mood && typeof s.branches.mood === "object" && "primary" in s.branches.mood
+                    ? (s.branches.mood.primary as string)
+                    : `section ${i}`
+                )
           );
           setVisualTrees(vTrees);
           setActiveSection(1);
@@ -266,10 +272,56 @@ function App() {
     [tree]
   );
 
-  const handleMusicGenerate = () => {
-    alert(
-      "ACE-Step music generation would be triggered here with the flattened prompt.\n\nSee the flattened output for what would be sent."
-    );
+  const handleMusicGenerate = async () => {
+    if (!tree) return;
+    setGeneratingMusic(true);
+    setMusicDescriptions(null);
+    setAudioUrl(null);
+    try {
+      const formData = new FormData();
+      formData.append("vibe_tree", JSON.stringify(tree));
+      if (audioFile) formData.append("reference_audio", audioFile);
+
+      const res = await fetch("http://localhost:8000/api/generate-music", {
+        method: "POST",
+        body: formData,
+      });
+      if (!res.ok) throw new Error(`API error: ${res.status}`);
+      const { job_id } = await res.json();
+
+      // Poll for completion
+      let completed = false;
+      let attempts = 0;
+      const maxAttempts = 600;
+
+      while (!completed && attempts < maxAttempts) {
+        attempts++;
+        await new Promise((r) => setTimeout(r, 2000));
+
+        const statusRes = await fetch(
+          `http://localhost:8000/api/status/${job_id}`
+        );
+        if (!statusRes.ok) throw new Error(`Status check failed: ${statusRes.status}`);
+        const job = await statusRes.json();
+
+        if (job.status === "completed") {
+          if (!job.result) throw new Error("No result returned");
+          setAudioUrl(`http://localhost:8000${job.result.audio_url}`);
+          setMusicDescriptions(job.result.descriptions);
+          completed = true;
+        } else if (job.status === "failed") {
+          throw new Error(job.error || "Music generation failed");
+        }
+      }
+
+      if (!completed) throw new Error("Music generation timed out");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      alert(`Music generation error: ${message}`);
+      console.error("Music generation error:", error);
+    } finally {
+      setGeneratingMusic(false);
+    }
   };
 
   // ── Handlers: section management ──────────────────
@@ -280,7 +332,11 @@ function App() {
     updated.root.sections.push(newSection);
     setTree(updated);
 
-    const newVt = emptyVisualTree(newSection.branches.mood.primary);
+    const newVt = emptyVisualTree(
+      newSection.branches.mood && typeof newSection.branches.mood === "object" && "primary" in newSection.branches.mood
+        ? (newSection.branches.mood.primary as string)
+        : `section ${updated.root.sections.length}`
+    );
     setVisualTrees((prev) => [...prev, newVt]);
     setActiveSection(updated.root.sections.length - 1);
     setSelectedNodeId(null);
@@ -588,15 +644,88 @@ function App() {
                 </div>
               </section>
             )}
+
+            {/* Generate Music button */}
+            <section className="panel" style={{ textAlign: "center" }}>
+              <button
+                className="btn btn--primary"
+                onClick={handleMusicGenerate}
+                disabled={generatingMusic}
+                style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
+              >
+                {generatingMusic ? (
+                  <>
+                    <span className="spinner" />
+                    Generating Music...
+                  </>
+                ) : (
+                  "Generate Music"
+                )}
+              </button>
+              <button
+                className="btn btn--ghost"
+                onClick={() => setShowFlattened((v) => !v)}
+                style={{ marginLeft: 8 }}
+              >
+                {showFlattened ? "Hide Prompt" : "Show Prompt"}
+              </button>
+            </section>
           </>
         )}
 
-        {/* ── Audio Player ──────────────────────────────── */}
-        {audioUrl && (
+        {/* ── Audio Player + Descriptions ─────────────────── */}
+        {(audioUrl || generatingMusic) && (
           <section className="panel audio-panel">
             <h2 className="panel-title">Output</h2>
-            <audio controls src={audioUrl} className="audio-player" />
-            <button className="btn btn--ghost">Refine</button>
+            {audioUrl && (
+              <audio controls src={audioUrl} className="audio-player" />
+            )}
+            {generatingMusic && !audioUrl && (
+              <p style={{ opacity: 0.6 }}>Waiting for ACE-Step to generate audio...</p>
+            )}
+            {musicDescriptions && (
+              <div className="music-descriptions" style={{ marginTop: 16 }}>
+                <h3 className="flattened-title">ACE-Step Analysis</h3>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 24px", fontSize: 14 }}>
+                  {musicDescriptions.bpm != null && (
+                    <>
+                      <span style={{ opacity: 0.6 }}>BPM</span>
+                      <span>{String(musicDescriptions.bpm)}</span>
+                    </>
+                  )}
+                  {musicDescriptions.keyscale && (
+                    <>
+                      <span style={{ opacity: 0.6 }}>Key</span>
+                      <span>{String(musicDescriptions.keyscale)}</span>
+                    </>
+                  )}
+                  {musicDescriptions.timesignature && (
+                    <>
+                      <span style={{ opacity: 0.6 }}>Time Signature</span>
+                      <span>{String(musicDescriptions.timesignature)}</span>
+                    </>
+                  )}
+                  {musicDescriptions.duration != null && (
+                    <>
+                      <span style={{ opacity: 0.6 }}>Duration</span>
+                      <span>{String(musicDescriptions.duration)}s</span>
+                    </>
+                  )}
+                  {musicDescriptions.genres && (
+                    <>
+                      <span style={{ opacity: 0.6 }}>Genres</span>
+                      <span>{String(musicDescriptions.genres)}</span>
+                    </>
+                  )}
+                </div>
+                {musicDescriptions.prompt && (
+                  <div style={{ marginTop: 12 }}>
+                    <span style={{ opacity: 0.6, fontSize: 13 }}>LM Caption</span>
+                    <pre className="flattened-pre" style={{ marginTop: 4 }}>{String(musicDescriptions.prompt)}</pre>
+                  </div>
+                )}
+              </div>
+            )}
           </section>
         )}
       </main>

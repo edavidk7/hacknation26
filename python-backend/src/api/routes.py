@@ -13,10 +13,11 @@ from typing import Optional
 
 from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from pydantic import BaseModel
 
 from src.agent.music_agent import generate_music_prompt
+from src.services.ace_step_client import AceStepClient, vibe_tree_to_ace_step_params
 
 log = logging.getLogger(__name__)
 
@@ -58,6 +59,7 @@ def create_app() -> FastAPI:
         model_name: Optional[str] = Form(None),
         max_video_frames: int = Form(6),
         disable_web_search: bool = Form(False),
+        use_mock: bool = Form(True),
         files: list[UploadFile] = File(default=[]),
         background_tasks: BackgroundTasks = BackgroundTasks(),
     ) -> dict:
@@ -109,6 +111,7 @@ def create_app() -> FastAPI:
             model_name,
             max_video_frames,
             disable_web_search,
+            use_mock,
         )
 
         return {"job_id": job_id, "status": "processing"}
@@ -127,6 +130,51 @@ def create_app() -> FastAPI:
             error=job.get("error"),
         )
 
+    @app.post("/api/generate-music")
+    async def generate_music(
+        vibe_tree: str = Form(...),
+        reference_audio: Optional[UploadFile] = File(None),
+        background_tasks: BackgroundTasks = BackgroundTasks(),
+    ) -> dict:
+        """Generate music from a VibeTree via ACE-Step.
+
+        Args:
+            vibe_tree: JSON string of the VibeTree
+            reference_audio: Optional audio file for style transfer
+        """
+        try:
+            tree_dict = json.loads(vibe_tree)
+        except json.JSONDecodeError as e:
+            raise HTTPException(status_code=400, detail=f"Invalid vibe_tree JSON: {e}")
+
+        job_id = str(uuid.uuid4())
+        job_dir = TEMP_DIR / job_id
+        job_dir.mkdir(parents=True, exist_ok=True)
+
+        # Save reference audio if provided
+        ref_audio_path: str | None = None
+        if reference_audio and reference_audio.filename:
+            ref_path = job_dir / reference_audio.filename
+            with open(ref_path, "wb") as f:
+                f.write(await reference_audio.read())
+            ref_audio_path = str(ref_path)
+
+        jobs[job_id] = {"status": "processing", "result": None, "error": None}
+
+        background_tasks.add_task(
+            _run_music_generation, job_id, tree_dict, ref_audio_path
+        )
+
+        return {"job_id": job_id, "status": "processing"}
+
+    @app.get("/api/audio/{job_id}")
+    async def get_audio(job_id: str):
+        """Serve the generated audio file for a job."""
+        audio_path = TEMP_DIR / job_id / "output.mp3"
+        if not audio_path.exists():
+            raise HTTPException(status_code=404, detail="Audio file not found")
+        return FileResponse(str(audio_path), media_type="audio/mpeg")
+
     @app.get("/api/health")
     async def health_check() -> dict:
         """Health check endpoint."""
@@ -142,12 +190,14 @@ async def _run_generation(
     model_name: Optional[str],
     max_video_frames: int,
     disable_web_search: bool,
+    use_mock: bool = False,
 ) -> None:
     """Run the music prompt generation in the background."""
     try:
         log.info(f"Starting generation for job {job_id}")
         log.info(f"  Files: {file_paths}")
         log.info(f"  Text: {text}")
+        log.info(f"  Use mock: {use_mock}")
 
         result = await generate_music_prompt(
             file_paths=file_paths if file_paths else None,
@@ -157,6 +207,7 @@ async def _run_generation(
             verbose=False,
             debug=False,
             disable_web_search=disable_web_search,
+            use_mock=use_mock,
         )
 
         # Convert Pydantic model to dict
@@ -179,7 +230,50 @@ async def _run_generation(
         }
 
     finally:
-        # Clean up temporary files
+        # Clean up temporary files (but not the job dir itself — audio may still be needed)
         job_dir = TEMP_DIR / job_id
-        if job_dir.exists():
-            shutil.rmtree(job_dir, ignore_errors=True)
+        # Only clean up input files, not output audio
+        for f in (job_dir).glob("*"):
+            if f.name != "output.mp3":
+                f.unlink(missing_ok=True)
+
+
+async def _run_music_generation(
+    job_id: str,
+    vibe_tree: dict,
+    reference_audio_path: str | None,
+) -> None:
+    """Run ACE-Step music generation in the background."""
+    try:
+        log.info(f"Starting music generation for job {job_id}")
+
+        params = vibe_tree_to_ace_step_params(vibe_tree, reference_audio_path)
+        log.info(f"  ACE-Step params: prompt={params.get('prompt', '')[:100]}...")
+
+        client = AceStepClient()
+        result = await client.generate_music(params)
+
+        # Save audio to job directory
+        job_dir = TEMP_DIR / job_id
+        job_dir.mkdir(parents=True, exist_ok=True)
+        audio_path = job_dir / "output.mp3"
+        audio_path.write_bytes(result["audio_bytes"])
+        log.info(f"Saved audio to {audio_path} ({len(result['audio_bytes'])} bytes)")
+
+        jobs[job_id] = {
+            "status": "completed",
+            "result": {
+                "audio_url": f"/api/audio/{job_id}",
+                "descriptions": result["descriptions"],
+            },
+            "error": None,
+        }
+        log.info(f"Completed music generation for job {job_id}")
+
+    except Exception as e:
+        log.error(f"Error during music generation for job {job_id}: {e}", exc_info=True)
+        jobs[job_id] = {
+            "status": "failed",
+            "result": None,
+            "error": str(e),
+        }
