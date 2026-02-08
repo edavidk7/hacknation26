@@ -106,21 +106,81 @@ function App() {
 
   const handleGenerate = async () => {
     setGenerating(true);
-    // Simulate API call
-    await new Promise((r) => setTimeout(r, 1200));
+    try {
+      // Prepare form data with files and text
+      const formData = new FormData();
+      formData.append("text", prompt);
+      imageFiles.forEach((file) => formData.append("files", file));
+      if (audioFile) formData.append("files", audioFile);
+      if (videoFile) formData.append("files", videoFile);
 
-    const sample = structuredClone(FJORD_EXAMPLE);
-    setTree(sample);
+      // Step 1: Submit generation request
+      const generateRes = await fetch("http://localhost:8000/api/generate", {
+        method: "POST",
+        body: formData,
+      });
 
-    // Only populate the body section (index 1) with a full visual tree;
-    // intro and outro get empty visual trees (root node only).
-    const vTrees = sample.root.sections.map((s, i) =>
-      i === 1 ? sectionToVisualTree(s) : emptyVisualTree(s.branches.mood.primary)
-    );
-    setVisualTrees(vTrees);
-    setActiveSection(1);
-    setSelectedNodeId(null);
-    setGenerating(false);
+      if (!generateRes.ok) {
+        throw new Error(`API error: ${generateRes.status}`);
+      }
+
+      const { job_id } = await generateRes.json();
+
+      // Step 2: Poll for completion
+      let completed = false;
+      let attempts = 0;
+      const maxAttempts = 600; // 10 minutes with 1s polls
+
+      while (!completed && attempts < maxAttempts) {
+        attempts++;
+        await new Promise((r) => setTimeout(r, 1000)); // Poll every 1 second
+
+        const statusRes = await fetch(
+          `http://localhost:8000/api/status/${job_id}`
+        );
+        if (!statusRes.ok) {
+          throw new Error(`Status check failed: ${statusRes.status}`);
+        }
+
+        const job = await statusRes.json();
+
+        if (job.status === "completed") {
+          if (!job.result) {
+            throw new Error("No result returned from API");
+          }
+
+          // For now, use sample data structure since backend returns MusicPrompt
+          // In production, would transform API result to VibeTree format
+          const sample = structuredClone(FJORD_EXAMPLE);
+          sample.root.concept = job.result.title || sample.root.concept;
+          setTree(sample);
+
+          // Populate visual trees
+          const vTrees = sample.root.sections.map((s, i) =>
+            i === 1
+              ? sectionToVisualTree(s)
+              : emptyVisualTree(s.branches.mood.primary)
+          );
+          setVisualTrees(vTrees);
+          setActiveSection(1);
+          setSelectedNodeId(null);
+          completed = true;
+        } else if (job.status === "failed") {
+          throw new Error(job.error || "Generation failed");
+        }
+      }
+
+      if (!completed) {
+        throw new Error("Generation timeout");
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unknown error";
+      alert(`Error: ${message}`);
+      console.error("Generation error:", error);
+    } finally {
+      setGenerating(false);
+    }
   };
 
   // ── Handlers: tree ops ─────────────────────────────

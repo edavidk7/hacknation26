@@ -128,4 +128,7 @@ Guidelines:
 - Use web search extensively to enrich your understanding of the input context
 - Explore tensions, contrasts, and emotional nuances in depth
 - Generate at least 10-15 distinct analytical nodes/branches
+
+CRITICAL OUTPUT REQUIREMENT:
+You MUST respond with ONLY valid JSON in the structure shown above. Do not include any text before, after, or mixed with the JSON. Your entire response must be a single, complete JSON object that can be parsed with json.loads(). After thorough analysis, output the JSON directly with no preamble or explanation.
 """
