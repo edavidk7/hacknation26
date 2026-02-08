@@ -3,8 +3,11 @@
 Ruben is an exploratory tool that lets people create music from images, videos, and text while gaining intuition for how AI models interpret multimodal inputs.
 
 ## Screenshots
+The homepage looks like this:
 
 ![Input page](screenshots/ruben_page.png)
+
+Running on a multimodal set of inputs produces an intermediate representation:
 
 ![Sonic Blueprint editor](screenshots/ruben_sonic_blueprint.png)
 
@@ -17,13 +20,13 @@ Ruben is an exploratory tool that lets people create music from images, videos, 
 5. **Version** your work — each run creates a checkpoint you can branch from or return to
 
 ```mermaid
-flowchart LR
-    A["Images, Videos,\nAudio, Text"] -->|upload| B["FastAPI\nBackend"]
-    B -->|multimodal analysis| C["Kimi K2.5\n(OpenRouter)"]
-    C -->|structured tree| D["Sonic\nBlueprint"]
-    D -->|interactive editing| E["React UI\n(VibeTree Editor)"]
-    E -->|refined prompt| F["ACE-Step 1.5\n(Music Generation)"]
-    F -->|audio| G["Generated\nMusic"]
+flowchart TD
+    A["Images, Videos, Audio, Text"] -->|upload| B["FastAPI Backend"]
+    B -->|multimodal analysis| C["Kimi K2.5 (OpenRouter)"]
+    C -->|structured tree| D["Sonic Blueprint"]
+    D -->|interactive editing| E["React UI (VibeTree Editor)"]
+    E -->|refined prompt| F["ACE-Step 1.5"]
+    F -->|audio| G["Generated Music"]
     E -.->|version & branch| E
 ```
 
