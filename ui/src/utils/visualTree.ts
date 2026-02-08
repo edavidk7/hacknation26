@@ -34,11 +34,19 @@ export function emptyVisualTree(vibe: string): VisualNode {
 
 /**
  * Convert a Section into a visual tree for rendering.
- * Root = section name, children = mood, genre, instruments, texture, sonic details.
- * Only includes branches that have actual values from the agent.
+ * If branches.tree exists (from backend), use it directly.
+ * Otherwise, fall back to the old branches structure.
  */
 export function sectionToVisualTree(section: Section): VisualNode {
   const b = section.branches;
+  
+  // If we have the original tree structure, convert it directly
+  if (b && typeof b === "object" && "tree" in b) {
+    const songNode = b.tree as any;
+    return songNodeToVisualTree(songNode, "section");
+  }
+
+  // Fallback to old structure (mood, genre, instruments, etc.)
   const children: VisualNode[] = [];
 
   // Mood branch
@@ -127,6 +135,50 @@ export function sectionToVisualTree(section: Section): VisualNode {
     kind: "section",
     children,
   };
+}
+
+/**
+ * Convert a SongNode directly to a VisualNode tree.
+ */
+function songNodeToVisualTree(node: any, kind: string = "custom"): VisualNode {
+  const children = (node.children || []).map((child: any) =>
+    songNodeToVisualTree(child, "custom")
+  );
+
+  // Format label with value if present
+  let label = node.name || "untitled";
+  if (node.value !== null && node.value !== undefined) {
+    const valueStr = formatValue(node.value);
+    if (valueStr) {
+      label = `${label}: ${valueStr}`;
+    }
+  }
+
+  return {
+    id: nodeId(),
+    label,
+    kind: kind as any,
+    children,
+  };
+}
+
+/**
+ * Format a value for display.
+ */
+function formatValue(value: any): string {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "number") {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    return value.join(", ");
+  }
+  if (typeof value === "object" && value !== null) {
+    return JSON.stringify(value);
+  }
+  return "";
 }
 
 /**

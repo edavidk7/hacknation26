@@ -27,30 +27,26 @@ export function transformSongCharacteristicsToVibeTree(
 ): VibeTree {
   const root = characteristics.root;
 
-  // Extract concept from root name
-  const concept = root.name || "Untitled Composition";
-
-  // Parse all children recursively to extract global info and sections
-  const globalInfo = extractGlobalInfo(root);
-
-  // Parse children into sections (intro, body, outro)
-  const sections = parseChildrenToSections(root.children || []);
-
-  // If we have fewer than 3 sections, pad with empty ones
-  while (sections.length < 3) {
-    const sectionNames = ["intro", "body", "outro"];
-    sections.push(createEmptySection(sectionNames[sections.length]));
-  }
+  // Store the entire tree structure as-is in a single section
+  const sections = [
+    {
+      name: root.name || "Untitled",
+      weight: 1,
+      branches: {
+        tree: root,
+      },
+    },
+  ];
 
   return {
     root: {
-      concept,
+      concept: root.name || "Untitled Composition",
       image_interpretation: null,
-      sections: sections.slice(0, 3), // Take first 3 sections
+      sections,
       global: {
-        overall_arc: globalInfo.arc || "evolving journey",
-        tags: globalInfo.tags,
-        duration_seconds: globalInfo.duration || 180,
+        overall_arc: root.metadata?.overall_arc as string || "evolving journey",
+        tags: (root.metadata?.tags as string[]) || [],
+        duration_seconds: (root.metadata?.duration_seconds as number) || 180,
       },
     },
   };
@@ -87,59 +83,16 @@ function extractGlobalInfo(root: SongNode): {
 }
 
 /**
- * Parse children SongNodes into Section objects.
- */
-function parseChildrenToSections(children: SongNode[]): Section[] {
-  const sections: Section[] = [];
-
-  // Identify section nodes
-  const sectionNodes = children.filter((c) => {
-    const nameLower = c.name.toLowerCase();
-    return (
-      nameLower.includes("intro") ||
-      nameLower.includes("verse") ||
-      nameLower.includes("body") ||
-      nameLower.includes("chorus") ||
-      nameLower.includes("outro") ||
-      nameLower.includes("bridge")
-    );
-  });
-
-  // If we found explicit sections, use them
-  if (sectionNodes.length > 0) {
-    for (let i = 0; i < Math.min(sectionNodes.length, 3); i++) {
-      const sectionNode = sectionNodes[i];
-      const section = parseSectionNode(sectionNode, sections.length);
-      sections.push(section);
-    }
-  }
-
-  // Otherwise, try to map top-level children as sections
-  if (sections.length === 0) {
-    for (let i = 0; i < Math.min(children.length, 3); i++) {
-      const child = children[i];
-      const section = parseSectionNode(child, i);
-      sections.push(section);
-    }
-  }
-
-  return sections;
-}
-
-/**
  * Parse a single SongNode into a Section.
+ * Store the original tree structure in branches.tree for later visualization.
  */
 function parseSectionNode(node: SongNode, index: number): Section {
-  const branches = parseBranches(node.children || []);
-
-  // Infer section name from index
-  const sectionNames = ["intro", "body", "outro"];
-  const sectionName = sectionNames[index] || node.name;
-
   return {
-    name: sectionName,
+    name: node.name,
     weight: 1 / 3,
-    branches,
+    branches: {
+      tree: node,
+    },
   };
 }
 

@@ -157,17 +157,11 @@ function App() {
           setTree(vibeTree);
 
           // Populate visual trees
-          const vTrees = vibeTree.root.sections.map((s, i) =>
-            i === 1
-              ? sectionToVisualTree(s)
-              : emptyVisualTree(
-                  s.branches.mood && typeof s.branches.mood === "object" && "primary" in s.branches.mood
-                    ? (s.branches.mood.primary as string)
-                    : `section ${i}`
-                )
-          );
-          setVisualTrees(vTrees);
-          setActiveSection(1);
+           const vTrees = vibeTree.root.sections.map((s) =>
+             sectionToVisualTree(s)
+           );
+           setVisualTrees(vTrees);
+           setActiveSection(0);
           setSelectedNodeId(null);
           completed = true;
         } else if (job.status === "failed") {
