@@ -44,6 +44,7 @@ function App() {
 
   // ── Audio / music generation state ─────────────────
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [musicJobId, setMusicJobId] = useState<string | null>(null);
   const [generatingMusic, setGeneratingMusic] = useState(false);
   const [musicDescriptions, setMusicDescriptions] = useState<Record<string, unknown> | null>(null);
   const [songDuration, setSongDuration] = useState<number>(30);
@@ -112,14 +113,27 @@ function App() {
     return `${m}:${sec.toString().padStart(2, "0")}`;
   };
 
-  const handleDownload = () => {
-    if (!audioUrl) return;
-    const a = document.createElement("a");
-    a.href = audioUrl;
-    a.download = `ruben-${Date.now()}.mp3`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+  const handleDownload = async () => {
+    if (!musicJobId) return;
+    try {
+      const downloadUrl = `${API_BASE}/api/audio/${musicJobId}?download=true`;
+      const response = await fetch(downloadUrl);
+      if (!response.ok) {
+        throw new Error(`Download failed: ${response.status}`);
+      }
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = `song-${musicJobId}.mp3`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      console.error("Download error:", error);
+      alert(`Failed to download song: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
   };
 
   // ── Derived ────────────────────────────────────────
@@ -348,6 +362,7 @@ function App() {
     setGeneratingMusic(true);
     setMusicDescriptions(null);
     setAudioUrl(null);
+    setMusicJobId(null);
     try {
       const formData = new FormData();
       formData.append("vibe_tree", JSON.stringify(tree));
@@ -378,6 +393,7 @@ function App() {
 
         if (job.status === "completed") {
           if (!job.result) throw new Error("No result returned");
+          setMusicJobId(job_id);
           setAudioUrl(`${API_BASE}${job.result.audio_url}`);
           setMusicDescriptions(job.result.descriptions);
 

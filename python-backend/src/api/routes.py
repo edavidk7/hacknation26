@@ -185,12 +185,22 @@ def create_app() -> FastAPI:
         return {"job_id": job_id, "status": "processing"}
 
     @app.get("/api/audio/{job_id}")
-    async def get_audio(job_id: str):
-        """Serve the generated audio file for a job."""
+    async def get_audio(job_id: str, download: bool = False):
+        """Serve the generated audio file for a job.
+        
+        Args:
+            job_id: The job ID
+            download: If True, return with Content-Disposition for download
+        """
         audio_path = TEMP_DIR / job_id / "output.mp3"
         if not audio_path.exists():
             raise HTTPException(status_code=404, detail="Audio file not found")
-        return FileResponse(str(audio_path), media_type="audio/mpeg")
+        
+        headers = {}
+        if download:
+            headers["Content-Disposition"] = f"attachment; filename=song-{job_id}.mp3"
+        
+        return FileResponse(str(audio_path), media_type="audio/mpeg", headers=headers if headers else None)
 
     @app.get("/api/health")
     async def health_check() -> dict:
