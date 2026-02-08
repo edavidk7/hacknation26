@@ -1,6 +1,3 @@
 [submodule "ace_step"]
 	path = ace_step
 	url = https://github.com/edavidk7/ace_step
-[submodule "audioldm2"]
-	path = audioldm2
-	url = git@github.com:edavidk7/audioldm2.git
