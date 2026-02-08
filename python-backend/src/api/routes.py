@@ -160,13 +160,15 @@ async def _run_generation(
         )
 
         # Convert Pydantic model to dict
+        result_dict = result.model_dump() if hasattr(result, "model_dump") else result
         jobs[job_id] = {
             "status": "completed",
-            "result": result.model_dump() if hasattr(result, "model_dump") else result,
+            "result": result_dict,
             "error": None,
         }
 
         log.info(f"Completed generation for job {job_id}")
+        log.info(f"Result structure: {json.dumps(result_dict, indent=2, default=str)}")
 
     except Exception as e:
         log.error(f"Error during generation for job {job_id}: {e}", exc_info=True)

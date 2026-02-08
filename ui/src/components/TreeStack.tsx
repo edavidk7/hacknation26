@@ -84,163 +84,42 @@ export default function TreeStack({
   onRemoveSection,
   onRenameSection,
 }: Props) {
-  // Inline rename state
-  const [renamingIndex, setRenamingIndex] = useState<number | null>(null);
-  const [renameValue, setRenameValue] = useState("");
-  const renameInputRef = useRef<HTMLInputElement>(null);
-
-  const startRename = useCallback(
-    (index: number, currentLabel: string) => {
-      setRenamingIndex(index);
-      setRenameValue(currentLabel);
-      // Focus after render
-      requestAnimationFrame(() => {
-        renameInputRef.current?.focus();
-        renameInputRef.current?.select();
-      });
-    },
-    []
-  );
-
-  const finishRename = useCallback(() => {
-    if (renamingIndex !== null) {
-      const trimmed = renameValue.trim();
-      if (trimmed && trimmed !== trees[renamingIndex]?.label) {
-        onRenameSection?.(renamingIndex, trimmed);
-      }
-      setRenamingIndex(null);
-      setRenameValue("");
-    }
-  }, [renamingIndex, renameValue, trees, onRenameSection]);
-
-  const cancelRename = useCallback(() => {
-    setRenamingIndex(null);
-    setRenameValue("");
-  }, []);
-
   if (trees.length === 0) return null;
+
+  const activeTree = trees[activeIndex];
 
   return (
     <div className="tree-stack">
-      {/* ── Section buttons row ─────────────────────────── */}
-      <div className="tree-section-btns">
-        {trees.map((t, i) => (
-          <div key={i} className="tree-section-btn-wrap">
-            {renamingIndex === i ? (
-              <div
-                className="tree-section-btn tree-section-btn--active tree-section-btn--editing"
-                style={
-                  {
-                    "--tab-accent": SECTION_ACCENTS[i % SECTION_ACCENTS.length],
-                  } as React.CSSProperties
-                }
-              >
-                <span className="tree-section-dot" />
-                <input
-                  ref={renameInputRef}
-                  className="tree-section-rename-input"
-                  type="text"
-                  value={renameValue}
-                  onChange={(e) => setRenameValue(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      finishRename();
-                    }
-                    if (e.key === "Escape") cancelRename();
-                  }}
-                  onBlur={finishRename}
-                />
-              </div>
-            ) : (
-              <button
-                className={`tree-section-btn ${i === activeIndex ? "tree-section-btn--active" : ""}`}
-                style={
-                  {
-                    "--tab-accent": SECTION_ACCENTS[i % SECTION_ACCENTS.length],
-                  } as React.CSSProperties
-                }
-                onClick={() => onActiveChange(i)}
-                onDoubleClick={() => startRename(i, t.label)}
-              >
-                <span className="tree-section-dot" />
-                {t.label}
-              </button>
-            )}
-
-            {/* Remove button (only if more than 1 section) */}
-            {trees.length > 1 && onRemoveSection && (
-              <button
-                className="tree-section-remove"
-                title={`Remove ${t.label}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onRemoveSection(i);
-                }}
-              >
-                <CrossIcon />
-              </button>
-            )}
-          </div>
-        ))}
-
-        {/* Add section button */}
-        {onAddSection && (
-          <button
-            className="tree-section-btn tree-section-btn--add"
-            onClick={onAddSection}
-            title="Add section"
-          >
-            <PlusIcon />
-          </button>
-        )}
-      </div>
-
-      {/* ── Tree layers ────────────────────────────────── */}
+      {/* ── Single tree display ──────────────────────────── */}
       <div className="tree-stack-viewport">
-        {trees.map((t, i) => {
-          const isActive = i === activeIndex;
-          // Offset & scale for inactive layers
-          const offset = (i - activeIndex) * 18;
-          const scale = isActive ? 1 : 0.96;
-
-          return (
-            <div
-              key={i}
-              className={`tree-layer ${isActive ? "tree-layer--active" : "tree-layer--inactive"}`}
-              style={
-                {
-                  "--layer-offset": `${offset}px`,
-                  "--layer-scale": scale,
-                  "--layer-accent":
-                    SECTION_ACCENTS[i % SECTION_ACCENTS.length],
-                  zIndex: isActive ? 10 : 5 - Math.abs(i - activeIndex),
-                } as React.CSSProperties
+        <div
+          className="tree-layer tree-layer--active"
+          style={
+            {
+              "--layer-accent": SECTION_ACCENTS[activeIndex % SECTION_ACCENTS.length],
+              zIndex: 10,
+            } as React.CSSProperties
+          }
+        >
+          <div className="tree-container">
+            <EdgeCanvas
+              deps={[activeTree.root, true]}
+              color={
+                SECTION_ACCENTS[activeIndex % SECTION_ACCENTS.length] + "40"
               }
-            >
-              <div className="tree-container">
-                <EdgeCanvas
-                  deps={[t.root, isActive]}
-                  color={
-                    isActive
-                      ? SECTION_ACCENTS[i % SECTION_ACCENTS.length] + "40"
-                      : "rgba(102,155,188,0.12)"
-                  }
-                  lineWidth={isActive ? 1.5 : 1}
-                />
-                <TreeNode
-                  node={t.root}
-                  isRoot
-                  onEdit={(id, label) => onEdit(i, id, label)}
-                  onDelete={(id) => onDelete(i, id)}
-                  onAdd={(parentId) => onAdd(i, parentId)}
-                  onSelect={isActive ? (id) => onSelect?.(id) : undefined}
-                  selectedId={isActive ? selectedId : null}
-                />
-              </div>
-            </div>
-          );
-        })}
+              lineWidth={1.5}
+            />
+            <TreeNode
+              node={activeTree.root}
+              isRoot
+              onEdit={(id, label) => onEdit(activeIndex, id, label)}
+              onDelete={(id) => onDelete(activeIndex, id)}
+              onAdd={(parentId) => onAdd(activeIndex, parentId)}
+              onSelect={(id) => onSelect?.(id)}
+              selectedId={selectedId}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -256,14 +256,18 @@ async def generate_music_prompt(
             json_end = final_content.rfind('}') + 1
             if json_start >= 0 and json_end > json_start:
                 json_str = final_content[json_start:json_end]
+                log.info("Extracted JSON: %s", json_str[:500])  # Log first 500 chars
                 data = json.loads(json_str)
+                log.info("Parsed JSON data: %s", json.dumps(data, indent=2, default=str)[:1000])
                 result = SongCharacteristics(**data)
+                log.info("Created SongCharacteristics: %s", result.model_dump())
             else:
                 raise ValueError("No JSON found in response")
         else:
             raise ValueError("Expected string response from model")
     except (json.JSONDecodeError, ValidationError) as e:
         log.error("Failed to parse response: %s", e)
+        log.error("Full response content: %s", final_content)
         raise ValueError(f"Model response could not be parsed as SongCharacteristics: {e}")
     
     # Overall timing

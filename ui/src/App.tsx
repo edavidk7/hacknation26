@@ -11,6 +11,7 @@ import {
   deleteVisualNode,
   addVisualChild,
 } from "./utils/visualTree";
+import { transformSongCharacteristicsToVibeTree } from "./utils/transform";
 import TreeStack from "./components/TreeStack";
 import type { TreeData } from "./components/TreeStack";
 import DetailPanel from "./components/DetailPanel";
@@ -149,14 +150,12 @@ function App() {
             throw new Error("No result returned from API");
           }
 
-          // For now, use sample data structure since backend returns MusicPrompt
-          // In production, would transform API result to VibeTree format
-          const sample = structuredClone(FJORD_EXAMPLE);
-          sample.root.concept = job.result.title || sample.root.concept;
-          setTree(sample);
+          // Transform SongCharacteristics to VibeTree
+          const vibeTree = transformSongCharacteristicsToVibeTree(job.result);
+          setTree(vibeTree);
 
           // Populate visual trees
-          const vTrees = sample.root.sections.map((s, i) =>
+          const vTrees = vibeTree.root.sections.map((s, i) =>
             i === 1
               ? sectionToVisualTree(s)
               : emptyVisualTree(s.branches.mood.primary)
@@ -550,68 +549,6 @@ function App() {
         {/* ── Tree Visualization ────────────────────────── */}
         {tree && treeDataArray.length > 0 && (
           <>
-            {/* Global settings + actions (contained width) */}
-            <section className="panel">
-              <div className="panel-header">
-                <h2 className="panel-title">Vibe Tree</h2>
-                <div className="panel-actions">
-                  <button
-                    className={`btn btn--ghost ${showFlattened ? "btn--active" : ""}`}
-                    onClick={() => setShowFlattened(!showFlattened)}
-                  >
-                    {showFlattened ? "Hide" : "Show"} Flattened Prompt
-                  </button>
-                  <button
-                    className="btn btn--accent"
-                    onClick={handleMusicGenerate}
-                  >
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                      stroke="none"
-                    >
-                      <polygon points="5 3 19 12 5 21 5 3" />
-                    </svg>
-                    Generate Music
-                  </button>
-                </div>
-              </div>
-
-              {/* Global settings bar */}
-              <div className="global-bar">
-                <div className="global-field">
-                  <span className="global-field-label">Arc</span>
-                  <input
-                    className="global-input"
-                    type="text"
-                    value={tree.root.global.overall_arc}
-                    onChange={(e) => handleGlobalArc(e.target.value)}
-                  />
-                </div>
-                <div className="global-field global-field--small">
-                  <span className="global-field-label">Duration</span>
-                  <input
-                    className="global-input global-input--number"
-                    type="number"
-                    value={tree.root.global.duration_seconds}
-                    onChange={(e) =>
-                      handleGlobalDuration(Number(e.target.value))
-                    }
-                  />
-                  <span className="global-field-unit">s</span>
-                </div>
-              </div>
-
-              {/* Showcase carousel */}
-              <Showcase
-                images={imagePreviews}
-                audioFile={audioFile}
-                videoFile={videoFile}
-              />
-            </section>
-
             {/* Tree (full-bleed) */}
             <section className="panel tree-panel">
               <TreeStack
