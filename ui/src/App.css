@@ -15,6 +15,12 @@
   align-items: center;
   position: relative;
   overflow: hidden;
+  padding-right: 320px;
+  transition: padding-right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.app--sidebar-collapsed {
+  padding-right: 48px;
 }
 
 /* ── Ambient Background ─────────────────────────────── */
@@ -1830,7 +1836,25 @@
 
 /* ── Responsive ──────────────────────────────────────── */
 
+@media (max-width: 1200px) {
+  .app {
+    padding-right: 280px;
+  }
+  
+  .app--sidebar-collapsed {
+    padding-right: 48px;
+  }
+}
+
 @media (max-width: 768px) {
+  .app {
+    padding-right: 0;
+  }
+  
+  .app--sidebar-collapsed {
+    padding-right: 0;
+  }
+  
   .main {
     padding: 16px 12px 60px;
   }
