@@ -126,7 +126,17 @@ def prepare_content(
 
         elif kind == "video":
             frames = extract_keyframes(path, max_frames=max_video_frames)
-            for i, frame_bytes in enumerate(frames):
+            total = len(frames)
+            for i, (frame_bytes, timestamp) in enumerate(frames):
+                # Add temporal annotation so the LLM understands chronological order
+                minutes = int(timestamp // 60)
+                seconds = int(timestamp % 60)
+                content.append(
+                    {
+                        "type": "text",
+                        "text": f"[Video frame {i + 1} of {total} — timestamp {minutes}:{seconds:02d}]",
+                    }
+                )
                 b64_frame = base64.standard_b64encode(frame_bytes).decode("utf-8")
                 content.append(
                     {

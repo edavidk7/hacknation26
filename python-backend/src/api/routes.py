@@ -20,7 +20,6 @@ from src.agent.music_agent import generate_music_prompt, assemble_music_prompt
 from src.services.ace_step_client import (
     AceStepClient,
     vibe_tree_to_ace_step_params,
-    song_characteristics_to_ace_step_params,
 )
 
 log = logging.getLogger(__name__)
@@ -59,7 +58,7 @@ def create_app() -> FastAPI:
 
     @app.post("/api/generate")
     async def generate_tree(
-        text: str = Form(...),
+        text: Optional[str] = Form(None),
         model_name: Optional[str] = Form(None),
         max_video_frames: int = Form(6),
         disable_web_search: bool = Form(False),
@@ -70,8 +69,11 @@ def create_app() -> FastAPI:
         """
         Generate a vibe tree from multimodal inputs.
 
+        At least one input is required: text, or one or more files (image,
+        audio, video).  Any combination of modalities is accepted.
+
         Args:
-            text: Text description/prompt
+            text: Optional text description/prompt
             model_name: Optional OpenRouter model ID
             max_video_frames: Max keyframes to extract from videos
             disable_web_search: Whether to disable web search
@@ -81,6 +83,15 @@ def create_app() -> FastAPI:
         Returns:
             Job ID and initial status
         """
+        # Validate that at least one input is provided
+        has_text = bool(text and text.strip())
+        has_files = any(f.filename for f in files)
+        if not has_text and not has_files:
+            raise HTTPException(
+                status_code=400,
+                detail="At least one input is required: text or a file (image, audio, video)",
+            )
+
         job_id = str(uuid.uuid4())
         job_dir = TEMP_DIR / job_id
         job_dir.mkdir(parents=True, exist_ok=True)
@@ -311,30 +322,28 @@ def create_app() -> FastAPI:
     return app
 
 
-async def _run_generation(
+def _run_generation(
     job_id: str,
     file_paths: list[str],
-    text: str,
+    text: str | None,
     model_name: Optional[str],
     max_video_frames: int,
     disable_web_search: bool,
     use_mock: bool = False,
 ) -> None:
-    """Run the music prompt generation in the background.
+    """Run vibe-tree generation in the background (sync — runs in threadpool).
 
-    This now does the full pipeline:
-    1. Generate vibe tree from multimodal inputs
-    2. Convert vibe tree to ACE-Step parameters
-    3. Call ACE-Step to generate music
+    This ONLY produces the vibe tree — no music generation.
+    Music generation happens separately via /api/generate-music.
+
+    Must be a regular (non-async) function so FastAPI runs it in a thread,
+    preventing the synchronous OpenAI SDK call from blocking the event loop.
     """
     try:
-        log.info(f"Starting generation for job {job_id}")
+        log.info(f"Starting tree generation for job {job_id}")
         log.info(f"  Files: {file_paths}")
         log.info(f"  Text: {text}")
         log.info(f"  Use mock: {use_mock}")
-
-        # Step 1: Generate vibe tree
-        log.info(f"[{job_id}] Generating vibe tree...")
 
         # Get thinking budget from environment or use default
         thinking_budget = None
@@ -344,16 +353,18 @@ async def _run_generation(
             except ValueError:
                 log.warning("Invalid THINKING_BUDGET env var, using default")
 
-        vibe_tree = await generate_music_prompt(
-            file_paths=file_paths if file_paths else None,
-            text=text,
-            model_name=model_name,
-            max_video_frames=max_video_frames,
-            verbose=False,
-            debug=False,
-            disable_web_search=disable_web_search,
-            use_mock=use_mock,
-            thinking_budget=thinking_budget,
+        vibe_tree = asyncio.run(
+            generate_music_prompt(
+                file_paths=file_paths if file_paths else None,
+                text=text if text else None,
+                model_name=model_name,
+                max_video_frames=max_video_frames,
+                verbose=False,
+                debug=False,
+                disable_web_search=disable_web_search,
+                use_mock=use_mock,
+                thinking_budget=thinking_budget,
+            )
         )
 
         # Convert to dict for storage
@@ -362,74 +373,13 @@ async def _run_generation(
         )
         log.info(f"[{job_id}] Vibe tree generated successfully")
 
-        # Step 2: Assembly pass — LLM converts tree to coherent caption + lyrics
-        log.info(f"[{job_id}] Running assembly pass...")
-        assembled = await assemble_music_prompt(
-            vibe_tree=vibe_tree_dict,
-            original_text=text,
-        )
-        if assembled.get("prompt"):
-            log.info(
-                f"[{job_id}] Assembly pass succeeded: caption='{assembled['prompt'][:80]}...'"
-            )
-        else:
-            log.warning(
-                f"[{job_id}] Assembly pass returned empty, falling back to mechanical conversion"
-            )
-
-        # Step 3: Convert vibe tree to ACE-Step parameters
-        log.info(f"[{job_id}] Converting to ACE-Step parameters...")
-        ace_params = song_characteristics_to_ace_step_params(
-            vibe_tree, assembled_prompt=assembled if assembled.get("prompt") else None
-        )
-        log.info(
-            f"[{job_id}] ACE-Step params: prompt='{ace_params.get('prompt', '')[:100]}...'"
-        )
-
-        # Step 4: Generate music via ACE-Step (optional)
-        log.info(f"[{job_id}] Submitting to ACE-Step...")
-        ace_result = None
-        try:
-            client = AceStepClient()
-            ace_result = await client.generate_music(ace_params)
-
-            # Save audio to job directory
-            job_dir = TEMP_DIR / job_id
-            job_dir.mkdir(parents=True, exist_ok=True)
-            audio_path = job_dir / "output.mp3"
-            audio_path.write_bytes(ace_result["audio_bytes"])
-            log.info(
-                f"[{job_id}] Saved audio to {audio_path} ({len(ace_result['audio_bytes'])} bytes)"
-            )
-        except Exception as ace_error:
-            log.warning(
-                f"[{job_id}] ACE-Step generation failed (continuing without audio): {ace_error}"
-            )
-            ace_result = None
-
-        # Store result with both tree and generation metadata
-        result_data = {
-            "vibe_tree": vibe_tree_dict,
-        }
-
-        # Include assembled prompt so frontend can display what was sent to ACE-Step
-        if assembled.get("prompt"):
-            result_data["assembled_prompt"] = assembled
-
-        if ace_result:
-            result_data["audio_url"] = f"/api/audio/{job_id}"
-            result_data["descriptions"] = ace_result.get("descriptions", {})
-        else:
-            result_data["audio_status"] = "not_generated"
-            result_data["audio_error"] = "ACE-Step API not available"
-
         jobs[job_id] = {
             "status": "completed",
-            "result": result_data,
+            "result": {"vibe_tree": vibe_tree_dict},
             "error": None,
         }
 
-        log.info(f"[{job_id}] Completed full generation pipeline")
+        log.info(f"[{job_id}] Tree generation complete (no music generation)")
 
     except Exception as e:
         log.error(f"Error during generation for job {job_id}: {e}", exc_info=True)
@@ -442,24 +392,23 @@ async def _run_generation(
     finally:
         # Clean up temporary input files
         job_dir = TEMP_DIR / job_id
-        # Only clean up input files, not output audio
-        for f in (job_dir).glob("*"):
-            if f.name != "output.mp3":
+        if job_dir.exists():
+            for f in job_dir.glob("*"):
                 f.unlink(missing_ok=True)
 
 
-async def _run_music_generation(
+def _run_music_generation(
     job_id: str,
     vibe_tree: dict,
     reference_audio_path: str | None,
 ) -> None:
-    """Run ACE-Step music generation in the background."""
+    """Run ACE-Step music generation in the background (sync — runs in threadpool)."""
     try:
         log.info(f"Starting music generation for job {job_id}")
 
         # Assembly pass — LLM converts (user-edited) tree to coherent caption + lyrics
         log.info(f"[{job_id}] Running assembly pass on edited tree...")
-        assembled = await assemble_music_prompt(vibe_tree=vibe_tree)
+        assembled = asyncio.run(assemble_music_prompt(vibe_tree=vibe_tree))
         if assembled.get("prompt"):
             log.info(
                 f"[{job_id}] Assembly pass succeeded: caption='{assembled['prompt'][:80]}...'"
@@ -477,7 +426,7 @@ async def _run_music_generation(
         log.info(f"  ACE-Step params: prompt={params.get('prompt', '')[:100]}...")
 
         client = AceStepClient()
-        result = await client.generate_music(params)
+        result = asyncio.run(client.generate_music(params))
 
         # Save audio to job directory
         job_dir = TEMP_DIR / job_id
@@ -506,22 +455,24 @@ async def _run_music_generation(
         }
 
 
-async def _run_repaint(
+def _run_repaint(
     job_id: str,
     src_audio_path: str,
     prompt: str,
     repainting_start: float,
     repainting_end: float,
 ) -> None:
-    """Run ACE-Step repaint/remix in the background."""
+    """Run ACE-Step repaint/remix in the background (sync — runs in threadpool)."""
     try:
         log.info(f"Starting repaint for job {job_id}")
         client = AceStepClient()
-        result = await client.repaint(
-            src_audio_path=src_audio_path,
-            prompt=prompt,
-            repainting_start=repainting_start,
-            repainting_end=repainting_end,
+        result = asyncio.run(
+            client.repaint(
+                src_audio_path=src_audio_path,
+                prompt=prompt,
+                repainting_start=repainting_start,
+                repainting_end=repainting_end,
+            )
         )
 
         job_dir = TEMP_DIR / job_id
@@ -545,7 +496,7 @@ async def _run_repaint(
         jobs[job_id] = {"status": "failed", "result": None, "error": str(e)}
 
 
-async def _run_style_transfer(
+def _run_style_transfer(
     job_id: str,
     ref_audio_path: str,
     prompt: str,
@@ -553,16 +504,18 @@ async def _run_style_transfer(
     audio_cover_strength: float,
     audio_duration: float,
 ) -> None:
-    """Run ACE-Step style transfer in the background."""
+    """Run ACE-Step style transfer in the background (sync — runs in threadpool)."""
     try:
         log.info(f"Starting style transfer for job {job_id}")
         client = AceStepClient()
-        result = await client.style_transfer(
-            ref_audio_path=ref_audio_path,
-            prompt=prompt,
-            lyrics=lyrics,
-            audio_cover_strength=audio_cover_strength,
-            audio_duration=audio_duration,
+        result = asyncio.run(
+            client.style_transfer(
+                ref_audio_path=ref_audio_path,
+                prompt=prompt,
+                lyrics=lyrics,
+                audio_cover_strength=audio_cover_strength,
+                audio_duration=audio_duration,
+            )
         )
 
         job_dir = TEMP_DIR / job_id

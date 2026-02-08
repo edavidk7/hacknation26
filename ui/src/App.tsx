@@ -108,12 +108,17 @@ function App() {
     setVideoFile(e.target.files?.[0] ?? null);
   };
 
+  // Whether we have at least one input to generate from
+  const hasInput = prompt.trim().length > 0 || imageFiles.length > 0 || audioFile !== null || videoFile !== null;
+
   const handleGenerate = async () => {
     setGenerating(true);
     try {
       // Prepare form data with files and text
       const formData = new FormData();
-      formData.append("text", prompt);
+      if (prompt.trim()) {
+        formData.append("text", prompt);
+      }
       imageFiles.forEach((file) => formData.append("files", file));
       if (audioFile) formData.append("files", audioFile);
       if (videoFile) formData.append("files", videoFile);
@@ -383,7 +388,9 @@ function App() {
           <h2 className="panel-title">Input</h2>
 
           <div className="input-group">
-            <label className="input-label">Describe your vibe</label>
+            <label className="input-label">
+              Describe your vibe <span className="optional">(optional if files provided)</span>
+            </label>
             <textarea
               className="prompt-input"
               value={prompt}
@@ -563,7 +570,7 @@ function App() {
           <button
             className="btn btn--primary"
             onClick={handleGenerate}
-            disabled={generating || !prompt.trim()}
+            disabled={generating || !hasInput}
           >
             {generating ? (
               <>

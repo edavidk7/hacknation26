@@ -6,7 +6,11 @@ import logging
 import os
 import sys
 
+from dotenv import load_dotenv
 import uvicorn
+
+# Load .env file (must happen before any module reads env vars)
+load_dotenv()
 
 from src.api.routes import create_app
 
