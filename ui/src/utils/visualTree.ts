@@ -2,6 +2,42 @@ import type { Section, VisualNode } from "./types";
 import { nodeId } from "./types";
 
 /**
+ * Create a blank Section with sensible defaults.
+ */
+export function createEmptySection(name: string): Section {
+  return {
+    name,
+    weight: 0.25,
+    branches: {
+      mood: { primary: "new vibe", nuances: [] },
+      genre: { primary: "ambient", influences: [] },
+      instruments: [],
+      texture: { density: "sparse", movement: "static", space: "open" },
+      sonic_details: [],
+      metadata: {
+        tempo_feel: "",
+        suggested_bpm: null,
+        key: null,
+        time_signature: null,
+      },
+    },
+  };
+}
+
+/**
+ * Create an empty visual tree for a section (just a root node, no children).
+ * Uses the mood primary as the root vibe label.
+ */
+export function emptyVisualTree(vibe: string): VisualNode {
+  return {
+    id: nodeId(),
+    label: vibe || "new vibe",
+    kind: "section",
+    children: [],
+  };
+}
+
+/**
  * Convert a Section into a visual tree for rendering.
  * Root = section name, children = mood, genre, instruments, texture, sonic details.
  */
@@ -72,10 +108,10 @@ export function sectionToVisualTree(section: Section): VisualNode {
     children: sonicChildren,
   };
 
-  // Root = section
+  // Root = section vibe (mood primary)
   return {
     id: nodeId(),
-    label: section.name,
+    label: b.mood.primary,
     kind: "section",
     children: [moodNode, genreNode, instrumentsNode, textureNode, sonicNode],
   };
@@ -90,7 +126,8 @@ export function visualTreeToSection(
   original: Section
 ): Section {
   const section = structuredClone(original);
-  section.name = node.label;
+  // Root label is the root vibe (mood primary), not the section name
+  section.branches.mood.primary = node.label;
 
   for (const child of node.children) {
     switch (child.kind) {

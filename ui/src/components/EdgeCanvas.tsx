@@ -1,124 +1,201 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 
 /**
  * EdgeCanvas — draws bezier curves between parent and child `.node` elements
  * inside a given container. Uses a <canvas> overlay positioned absolutely.
  *
- * Re-draws on: deps change, window resize, MutationObserver on the container.
- * Supports HiDPI via devicePixelRatio.
+ * Uses offsetLeft/offsetTop for positioning (immune to CSS transforms).
+ * Re-draws on: deps change, window resize, MutationObserver, and
+ * ResizeObserver on the container.
+ *
+ * The canvas finds its own container: the nearest `.tree-container` ancestor.
  */
 
 interface Props {
-  /** Ref to the container div that holds the tree nodes */
-  containerRef: React.RefObject<HTMLDivElement | null>;
   /** Arbitrary deps array — redraw when these change */
   deps?: unknown[];
-  /** Stroke color (default: rgba(108,99,255,0.25)) */
+  /** Stroke color (default: rgba(0,119,182,0.25)) */
   color?: string;
   /** Stroke width in CSS px (default: 1.5) */
   lineWidth?: number;
 }
 
+/**
+ * Get the offset position of `el` relative to `ancestor`.
+ * Walks up offsetParent chain summing offsetLeft/offsetTop.
+ * These values are immune to CSS transforms on ancestors.
+ */
+function getOffsetRelativeTo(
+  el: HTMLElement,
+  ancestor: HTMLElement
+): { x: number; y: number } {
+  let x = 0;
+  let y = 0;
+  let current: HTMLElement | null = el;
+  while (current && current !== ancestor) {
+    x += current.offsetLeft;
+    y += current.offsetTop;
+    current = current.offsetParent as HTMLElement | null;
+  }
+  return { x, y };
+}
+
 export default function EdgeCanvas({
-  containerRef,
   deps = [],
-  color = "rgba(108,99,255,0.25)",
+  color = "rgba(0,119,182,0.25)",
   lineWidth = 1.5,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const rafRef = useRef<number>(0);
 
-  useEffect(() => {
-    const container = containerRef.current;
+  const draw = useCallback(() => {
     const canvas = canvasRef.current;
-    if (!container || !canvas) return;
+    if (!canvas) return;
 
-    const draw = () => {
-      const dpr = window.devicePixelRatio || 1;
-      const rect = container.getBoundingClientRect();
+    const container = canvas.closest(".tree-container") as HTMLElement | null;
+    if (!container) return;
 
-      // Size the canvas to match the container
-      canvas.width = rect.width * dpr;
-      canvas.height = rect.height * dpr;
-      canvas.style.width = `${rect.width}px`;
-      canvas.style.height = `${rect.height}px`;
-
+    // Skip drawing for inactive layers — they're invisible anyway
+    const treeLayer = container.closest(".tree-layer") as HTMLElement | null;
+    if (treeLayer && !treeLayer.classList.contains("tree-layer--active")) {
+      // Clear the canvas so stale edges don't flash when switching
       const ctx = canvas.getContext("2d");
-      if (!ctx) return;
+      if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+      return;
+    }
 
-      ctx.scale(dpr, dpr);
-      ctx.clearRect(0, 0, rect.width, rect.height);
-      ctx.strokeStyle = color;
-      ctx.lineWidth = lineWidth;
-      ctx.lineCap = "round";
+    const dpr = window.devicePixelRatio || 1;
 
-      // Find all .branch elements. Each .branch has a .node inside it,
-      // and optionally a .children container with child .branch elements.
-      const branches = container.querySelectorAll<HTMLElement>(".branch");
+    const w = container.scrollWidth;
+    const h = container.scrollHeight;
 
-      branches.forEach((branch) => {
-        const parentNode = branch.querySelector<HTMLElement>(
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    canvas.style.width = `${w}px`;
+    canvas.style.height = `${h}px`;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, w, h);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.lineCap = "round";
+
+    const branches = container.querySelectorAll<HTMLElement>(".branch");
+
+    branches.forEach((branch) => {
+      const parentNode = branch.querySelector<HTMLElement>(
+        ":scope > .node-wrap > .node"
+      );
+      const childrenContainer = branch.querySelector<HTMLElement>(
+        ":scope > .children"
+      );
+      if (!parentNode || !childrenContainer) return;
+
+      const childBranches = childrenContainer.querySelectorAll<HTMLElement>(
+        ":scope > .branch"
+      );
+
+      // Parent: bottom-center
+      const pOff = getOffsetRelativeTo(parentNode, container);
+      const x1 = pOff.x + parentNode.offsetWidth / 2;
+      const y1 = pOff.y + parentNode.offsetHeight;
+
+      childBranches.forEach((childBranch) => {
+        const childNode = childBranch.querySelector<HTMLElement>(
           ":scope > .node-wrap > .node"
         );
-        const childrenContainer = branch.querySelector<HTMLElement>(
-          ":scope > .children"
-        );
-        if (!parentNode || !childrenContainer) return;
+        if (!childNode) return;
 
-        // Get child nodes (direct .branch children of .children container)
-        const childBranches = childrenContainer.querySelectorAll<HTMLElement>(
-          ":scope > .branch"
-        );
+        // Child: top-center
+        const cOff = getOffsetRelativeTo(childNode, container);
+        const x2 = cOff.x + childNode.offsetWidth / 2;
+        const y2 = cOff.y;
 
-        childBranches.forEach((childBranch) => {
-          const childNode = childBranch.querySelector<HTMLElement>(
-            ":scope > .node-wrap > .node"
-          );
-          if (!childNode) return;
+        const cpOffset = Math.min(Math.abs(y2 - y1) * 0.5, 60);
 
-          const pRect = parentNode.getBoundingClientRect();
-          const cRect = childNode.getBoundingClientRect();
-
-          // Start: bottom-center of parent
-          const x1 = pRect.left + pRect.width / 2 - rect.left;
-          const y1 = pRect.bottom - rect.top;
-
-          // End: top-center of child
-          const x2 = cRect.left + cRect.width / 2 - rect.left;
-          const y2 = cRect.top - rect.top;
-
-          // Bezier control points — vertical offset for smooth curves
-          const cpOffset = Math.min(Math.abs(y2 - y1) * 0.5, 60);
-
-          ctx.beginPath();
-          ctx.moveTo(x1, y1);
-          ctx.bezierCurveTo(x1, y1 + cpOffset, x2, y2 - cpOffset, x2, y2);
-          ctx.stroke();
-        });
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.bezierCurveTo(x1, y1 + cpOffset, x2, y2 - cpOffset, x2, y2);
+        ctx.stroke();
       });
+    });
+  }, [color, lineWidth]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const container = canvas.closest(".tree-container") as HTMLElement | null;
+    const treeLayer = canvas.closest(".tree-layer") as HTMLElement | null;
+
+    const scheduleDraw = () => {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(draw);
     };
 
     // Initial draw
-    draw();
+    scheduleDraw();
 
-    // Redraw on resize
-    const onResize = () => requestAnimationFrame(draw);
-    window.addEventListener("resize", onResize);
+    // Delayed redraw — catches layout that hasn't fully settled yet
+    // (e.g. fonts loading, flex layout computing)
+    const delayedTimer = setTimeout(scheduleDraw, 100);
 
-    // Observe DOM mutations in the container (node additions, removals, attribute changes)
-    const observer = new MutationObserver(() => requestAnimationFrame(draw));
-    observer.observe(container, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ["class", "style"],
-    });
+    // Redraw on window resize
+    window.addEventListener("resize", scheduleDraw);
+
+    // Redraw after CSS transitions on the tree-layer complete
+    // (position changes from absolute→relative, transform settles)
+    const handleTransitionEnd = (e: TransitionEvent) => {
+      // Only care about transform/opacity transitions on the layer itself
+      if (e.target === treeLayer) {
+        scheduleDraw();
+      }
+    };
+    treeLayer?.addEventListener("transitionend", handleTransitionEnd);
+
+    // Observe DOM mutations in the container (node add/remove/edit)
+    let mutationObs: MutationObserver | null = null;
+    if (container) {
+      mutationObs = new MutationObserver(scheduleDraw);
+      mutationObs.observe(container, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["class", "style"],
+      });
+    }
+
+    // Also observe the tree-layer for class changes (active↔inactive)
+    let layerMutationObs: MutationObserver | null = null;
+    if (treeLayer) {
+      layerMutationObs = new MutationObserver(scheduleDraw);
+      layerMutationObs.observe(treeLayer, {
+        attributes: true,
+        attributeFilter: ["class"],
+      });
+    }
+
+    // Observe size changes on the container (catches layout reflows)
+    let resizeObs: ResizeObserver | null = null;
+    if (container) {
+      resizeObs = new ResizeObserver(scheduleDraw);
+      resizeObs.observe(container);
+    }
 
     return () => {
-      window.removeEventListener("resize", onResize);
-      observer.disconnect();
+      cancelAnimationFrame(rafRef.current);
+      clearTimeout(delayedTimer);
+      window.removeEventListener("resize", scheduleDraw);
+      treeLayer?.removeEventListener("transitionend", handleTransitionEnd);
+      mutationObs?.disconnect();
+      layerMutationObs?.disconnect();
+      resizeObs?.disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [containerRef, color, lineWidth, ...deps]);
+  }, [draw, ...deps]);
 
   return (
     <canvas

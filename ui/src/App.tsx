@@ -4,6 +4,8 @@ import { FJORD_EXAMPLE } from "./utils/sampleData";
 import { flattenTree } from "./utils/flatten";
 import {
   sectionToVisualTree,
+  emptyVisualTree,
+  createEmptySection,
   visualTreeToSection,
   editVisualNode,
   deleteVisualNode,
@@ -12,14 +14,19 @@ import {
 import TreeStack from "./components/TreeStack";
 import type { TreeData } from "./components/TreeStack";
 import DetailPanel from "./components/DetailPanel";
+import Showcase from "./components/Showcase";
 import "./App.css";
 
 function App() {
   // ── Input state ────────────────────────────────────
   const [prompt, setPrompt] = useState("make it feel lonely but hopeful");
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const audioInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
 
   // ── Vibe Tree state ────────────────────────────────
   const [tree, setTree] = useState<VibeTree | null>(null);
@@ -67,15 +74,34 @@ function App() {
 
   // ── Handlers: input ────────────────────────────────
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] ?? null;
-    setImageFile(file);
-    if (file) {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const newFiles = Array.from(files);
+    setImageFiles((prev) => [...prev, ...newFiles]);
+
+    // Generate previews for each new file
+    newFiles.forEach((file) => {
       const reader = new FileReader();
-      reader.onload = () => setImagePreview(reader.result as string);
+      reader.onload = () =>
+        setImagePreviews((prev) => [...prev, reader.result as string]);
       reader.readAsDataURL(file);
-    } else {
-      setImagePreview(null);
-    }
+    });
+
+    // Reset input so the same file can be re-selected
+    e.target.value = "";
+  };
+
+  const removeImage = (index: number) => {
+    setImageFiles((prev) => prev.filter((_, i) => i !== index));
+    setImagePreviews((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleAudioUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setAudioFile(e.target.files?.[0] ?? null);
+  };
+
+  const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setVideoFile(e.target.files?.[0] ?? null);
   };
 
   const handleGenerate = async () => {
@@ -86,10 +112,13 @@ function App() {
     const sample = structuredClone(FJORD_EXAMPLE);
     setTree(sample);
 
-    // Convert each section to a visual tree
-    const vTrees = sample.root.sections.map((s) => sectionToVisualTree(s));
+    // Only populate the body section (index 1) with a full visual tree;
+    // intro and outro get empty visual trees (root node only).
+    const vTrees = sample.root.sections.map((s, i) =>
+      i === 1 ? sectionToVisualTree(s) : emptyVisualTree(s.branches.mood.primary)
+    );
     setVisualTrees(vTrees);
-    setActiveSection(0);
+    setActiveSection(1);
     setSelectedNodeId(null);
     setGenerating(false);
   };
@@ -184,6 +213,51 @@ function App() {
     );
   };
 
+  // ── Handlers: section management ──────────────────
+  const handleAddSection = useCallback(() => {
+    if (!tree) return;
+    const updated = structuredClone(tree);
+    const newSection = createEmptySection(`section ${updated.root.sections.length + 1}`);
+    updated.root.sections.push(newSection);
+    setTree(updated);
+
+    const newVt = emptyVisualTree(newSection.branches.mood.primary);
+    setVisualTrees((prev) => [...prev, newVt]);
+    setActiveSection(updated.root.sections.length - 1);
+    setSelectedNodeId(null);
+  }, [tree]);
+
+  const handleRemoveSection = useCallback(
+    (index: number) => {
+      if (!tree || tree.root.sections.length <= 1) return;
+      const updated = structuredClone(tree);
+      updated.root.sections.splice(index, 1);
+      setTree(updated);
+
+      setVisualTrees((prev) => prev.filter((_, i) => i !== index));
+
+      // Adjust active section
+      setActiveSection((current) => {
+        if (current >= updated.root.sections.length)
+          return updated.root.sections.length - 1;
+        if (current > index) return current - 1;
+        return current;
+      });
+      setSelectedNodeId(null);
+    },
+    [tree]
+  );
+
+  const handleRenameSection = useCallback(
+    (index: number, newName: string) => {
+      if (!tree) return;
+      const updated = structuredClone(tree);
+      updated.root.sections[index].name = newName;
+      setTree(updated);
+    },
+    [tree]
+  );
+
   // ── Active section data (for detail panel) ─────────
   const activeVisualTree = visualTrees[activeSection] ?? null;
   const activeSectionData = tree?.root.sections[activeSection] ?? null;
@@ -232,32 +306,39 @@ function App() {
 
           <div className="input-group">
             <label className="input-label">
-              Reference image{" "}
-              <span className="optional">(optional)</span>
+              Reference images{" "}
+              <span className="optional">(optional, multiple)</span>
             </label>
             <div
-              className={`image-upload ${imagePreview ? "has-image" : ""}`}
-              onClick={() => fileInputRef.current?.click()}
+              className={`image-upload ${imagePreviews.length > 0 ? "has-image" : ""}`}
+              onClick={() => imageInputRef.current?.click()}
             >
-              {imagePreview ? (
-                <div className="image-preview-wrap">
-                  <img
-                    src={imagePreview}
-                    alt="Upload preview"
-                    className="image-preview"
-                  />
-                  <button
-                    className="image-remove"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setImageFile(null);
-                      setImagePreview(null);
-                      if (fileInputRef.current)
-                        fileInputRef.current.value = "";
-                    }}
-                  >
-                    x
-                  </button>
+              {imagePreviews.length > 0 ? (
+                <div className="multi-preview-grid">
+                  {imagePreviews.map((src, i) => (
+                    <div key={i} className="multi-preview-item">
+                      <img
+                        src={src}
+                        alt={`Upload ${i + 1}`}
+                        className="image-preview"
+                      />
+                      <button
+                        className="image-remove"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeImage(i);
+                        }}
+                      >
+                        x
+                      </button>
+                    </div>
+                  ))}
+                  <div className="multi-preview-add">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                  </div>
                 </div>
               ) : (
                 <div className="image-placeholder">
@@ -275,20 +356,119 @@ function App() {
                     <circle cx="8.5" cy="8.5" r="1.5" />
                     <polyline points="21 15 16 10 5 21" />
                   </svg>
-                  <span>Click to upload</span>
+                  <span>Click to upload images</span>
                 </div>
               )}
               <input
-                ref={fileInputRef}
+                ref={imageInputRef}
                 type="file"
                 accept="image/*"
+                multiple
                 onChange={handleImageUpload}
                 hidden
               />
             </div>
-            {imageFile && (
-              <span className="image-name">{imageFile.name}</span>
+            {imageFiles.length > 0 && (
+              <span className="image-name">
+                {imageFiles.length} image{imageFiles.length > 1 ? "s" : ""} selected
+              </span>
             )}
+          </div>
+
+          {/* Audio upload */}
+          <div className="input-group">
+            <label className="input-label">
+              Audio reference{" "}
+              <span className="optional">(optional)</span>
+            </label>
+            <div
+              className={`media-upload ${audioFile ? "has-media" : ""}`}
+              onClick={() => audioInputRef.current?.click()}
+            >
+              {audioFile ? (
+                <div className="media-file-row">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#48cae4" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 18V5l12-2v13" />
+                    <circle cx="6" cy="18" r="3" />
+                    <circle cx="18" cy="16" r="3" />
+                  </svg>
+                  <span className="media-file-name">{audioFile.name}</span>
+                  <button
+                    className="media-remove"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setAudioFile(null);
+                      if (audioInputRef.current) audioInputRef.current.value = "";
+                    }}
+                  >
+                    x
+                  </button>
+                </div>
+              ) : (
+                <div className="media-placeholder">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 18V5l12-2v13" />
+                    <circle cx="6" cy="18" r="3" />
+                    <circle cx="18" cy="16" r="3" />
+                  </svg>
+                  <span>Upload audio clip</span>
+                </div>
+              )}
+              <input
+                ref={audioInputRef}
+                type="file"
+                accept="audio/*,.mp3,.wav,.ogg,.flac,.aac"
+                onChange={handleAudioUpload}
+                hidden
+              />
+            </div>
+          </div>
+
+          {/* Video upload */}
+          <div className="input-group">
+            <label className="input-label">
+              Video reference{" "}
+              <span className="optional">(optional)</span>
+            </label>
+            <div
+              className={`media-upload ${videoFile ? "has-media" : ""}`}
+              onClick={() => videoInputRef.current?.click()}
+            >
+              {videoFile ? (
+                <div className="media-file-row">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#90e0ef" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="23 7 16 12 23 17 23 7" />
+                    <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+                  </svg>
+                  <span className="media-file-name">{videoFile.name}</span>
+                  <button
+                    className="media-remove"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setVideoFile(null);
+                      if (videoInputRef.current) videoInputRef.current.value = "";
+                    }}
+                  >
+                    x
+                  </button>
+                </div>
+              ) : (
+                <div className="media-placeholder">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="23 7 16 12 23 17 23 7" />
+                    <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+                  </svg>
+                  <span>Upload video clip</span>
+                </div>
+              )}
+              <input
+                ref={videoInputRef}
+                type="file"
+                accept="video/*,.mp4,.webm,.mov,.avi"
+                onChange={handleVideoUpload}
+                hidden
+              />
+            </div>
           </div>
 
           <button
@@ -309,90 +489,109 @@ function App() {
 
         {/* ── Tree Visualization ────────────────────────── */}
         {tree && treeDataArray.length > 0 && (
-          <section className="panel tree-panel">
-            <div className="panel-header">
-              <h2 className="panel-title">Vibe Tree</h2>
-              <div className="panel-actions">
-                <button
-                  className={`btn btn--ghost ${showFlattened ? "btn--active" : ""}`}
-                  onClick={() => setShowFlattened(!showFlattened)}
-                >
-                  {showFlattened ? "Hide" : "Show"} Flattened Prompt
-                </button>
-                <button
-                  className="btn btn--accent"
-                  onClick={handleMusicGenerate}
-                >
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                    stroke="none"
+          <>
+            {/* Global settings + actions (contained width) */}
+            <section className="panel">
+              <div className="panel-header">
+                <h2 className="panel-title">Vibe Tree</h2>
+                <div className="panel-actions">
+                  <button
+                    className={`btn btn--ghost ${showFlattened ? "btn--active" : ""}`}
+                    onClick={() => setShowFlattened(!showFlattened)}
                   >
-                    <polygon points="5 3 19 12 5 21 5 3" />
-                  </svg>
-                  Generate Music
-                </button>
+                    {showFlattened ? "Hide" : "Show"} Flattened Prompt
+                  </button>
+                  <button
+                    className="btn btn--accent"
+                    onClick={handleMusicGenerate}
+                  >
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      stroke="none"
+                    >
+                      <polygon points="5 3 19 12 5 21 5 3" />
+                    </svg>
+                    Generate Music
+                  </button>
+                </div>
               </div>
-            </div>
 
-            {/* Global settings bar */}
-            <div className="global-bar">
-              <div className="global-field">
-                <span className="global-field-label">Arc</span>
-                <input
-                  className="global-input"
-                  type="text"
-                  value={tree.root.global.overall_arc}
-                  onChange={(e) => handleGlobalArc(e.target.value)}
-                />
+              {/* Global settings bar */}
+              <div className="global-bar">
+                <div className="global-field">
+                  <span className="global-field-label">Arc</span>
+                  <input
+                    className="global-input"
+                    type="text"
+                    value={tree.root.global.overall_arc}
+                    onChange={(e) => handleGlobalArc(e.target.value)}
+                  />
+                </div>
+                <div className="global-field global-field--small">
+                  <span className="global-field-label">Duration</span>
+                  <input
+                    className="global-input global-input--number"
+                    type="number"
+                    value={tree.root.global.duration_seconds}
+                    onChange={(e) =>
+                      handleGlobalDuration(Number(e.target.value))
+                    }
+                  />
+                  <span className="global-field-unit">s</span>
+                </div>
               </div>
-              <div className="global-field global-field--small">
-                <span className="global-field-label">Duration</span>
-                <input
-                  className="global-input global-input--number"
-                  type="number"
-                  value={tree.root.global.duration_seconds}
-                  onChange={(e) =>
-                    handleGlobalDuration(Number(e.target.value))
-                  }
-                />
-                <span className="global-field-unit">s</span>
-              </div>
-            </div>
 
-            {/* Tree stack */}
-            <TreeStack
-              trees={treeDataArray}
-              activeIndex={activeSection}
-              onActiveChange={setActiveSection}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              onAdd={handleAdd}
-              onSelect={handleSelect}
-              selectedId={selectedNodeId}
-            />
-
-            {/* Detail panel (conditional) */}
-            {selectedNodeId && (
-              <DetailPanel
-                selectedId={selectedNodeId}
-                tree={activeVisualTree}
-                section={activeSectionData}
-                onClose={() => setSelectedNodeId(null)}
-                onUpdateSection={handleUpdateSection}
+              {/* Showcase carousel */}
+              <Showcase
+                images={imagePreviews}
+                audioFile={audioFile}
+                videoFile={videoFile}
               />
+            </section>
+
+            {/* Tree (full-bleed) */}
+            <section className="panel tree-panel">
+              <TreeStack
+                trees={treeDataArray}
+                activeIndex={activeSection}
+                onActiveChange={setActiveSection}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                onAdd={handleAdd}
+                onSelect={handleSelect}
+                selectedId={selectedNodeId}
+                onAddSection={handleAddSection}
+                onRemoveSection={handleRemoveSection}
+                onRenameSection={handleRenameSection}
+              />
+            </section>
+
+            {/* Detail panel (contained width) */}
+            {selectedNodeId && (
+              <section className="panel">
+                <DetailPanel
+                  selectedId={selectedNodeId}
+                  tree={activeVisualTree}
+                  section={activeSectionData}
+                  onClose={() => setSelectedNodeId(null)}
+                  onUpdateSection={handleUpdateSection}
+                />
+              </section>
             )}
 
-            {/* Flattened output */}
+            {/* Flattened output (contained width) */}
             {showFlattened && flattenedPrompt && (
-              <div className="flattened-output">
-                <h3 className="flattened-title">ACE-Step Prompt</h3>
-                <pre className="flattened-pre">{flattenedPrompt}</pre>
-              </div>
+              <section className="panel">
+                <div className="flattened-output">
+                  <h3 className="flattened-title">ACE-Step Prompt</h3>
+                  <pre className="flattened-pre">{flattenedPrompt}</pre>
+                </div>
+              </section>
             )}
-          </section>
+          </>
         )}
 
         {/* ── Audio Player ──────────────────────────────── */}

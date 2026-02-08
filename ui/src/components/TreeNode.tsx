@@ -4,17 +4,17 @@ import type { VisualNode, NodeKind } from "../utils/types";
 // ── Kind → color mapping ────────────────────────────────
 
 const KIND_COLORS: Record<NodeKind, string> = {
-  section: "#6c63ff",
-  mood: "#ffb66b",
-  genre: "#4ecdc4",
-  instruments: "#a282ff",
-  texture: "#ff8a80",
-  sonic: "#64b5f6",
-  instrument: "#ce93d8",
-  nuance: "#ffcc80",
-  influence: "#80cbc4",
-  detail: "#90caf9",
-  custom: "#888",
+  section: "#0077b6",
+  mood: "#48cae4",
+  genre: "#00b4d8",
+  instruments: "#90e0ef",
+  texture: "#0096c7",
+  sonic: "#ade8f4",
+  instrument: "#caf0f8",
+  nuance: "#48cae4",
+  influence: "#90e0ef",
+  detail: "#ade8f4",
+  custom: "#0096c7",
 };
 
 // ── Icons ───────────────────────────────────────────────

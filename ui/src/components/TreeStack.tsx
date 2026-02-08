@@ -1,15 +1,24 @@
-import { useRef, useCallback } from "react";
+import { useRef, useCallback, useState } from "react";
 import type { VisualNode } from "../utils/types";
 import TreeNode from "./TreeNode";
 import EdgeCanvas from "./EdgeCanvas";
 
-// ── Section label colors (matches KIND_COLORS.section but per-index) ──
+// ── Section label colors (cycles for arbitrary count) ──
 
-const SECTION_ACCENTS = ["#6c63ff", "#4ecdc4", "#ffb66b"];
+const SECTION_ACCENTS = [
+  "#0077b6",
+  "#00b4d8",
+  "#48cae4",
+  "#90e0ef",
+  "#0096c7",
+  "#ade8f4",
+  "#caf0f8",
+  "#023e8a",
+];
 
 interface TreeData {
   root: VisualNode;
-  label: string; // "intro" | "body" | "outro"
+  label: string; // section name, e.g. "intro" | "body" | "outro"
 }
 
 interface Props {
@@ -21,9 +30,46 @@ interface Props {
   onAdd: (treeIndex: number, parentId: string) => void;
   onSelect?: (nodeId: string | null) => void;
   selectedId?: string | null;
+  onAddSection?: () => void;
+  onRemoveSection?: (index: number) => void;
+  onRenameSection?: (index: number, newName: string) => void;
 }
 
 export type { TreeData };
+
+// ── Icons ──────────────────────────────────────────────
+
+const PlusIcon = () => (
+  <svg
+    width="12"
+    height="12"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <line x1="12" y1="5" x2="12" y2="19" />
+    <line x1="5" y1="12" x2="19" y2="12" />
+  </svg>
+);
+
+const CrossIcon = () => (
+  <svg
+    width="10"
+    height="10"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <line x1="18" y1="6" x2="6" y2="18" />
+    <line x1="6" y1="6" x2="18" y2="18" />
+  </svg>
+);
 
 export default function TreeStack({
   trees,
@@ -34,41 +80,123 @@ export default function TreeStack({
   onAdd,
   onSelect,
   selectedId,
+  onAddSection,
+  onRemoveSection,
+  onRenameSection,
 }: Props) {
-  // Refs for each tree container (for EdgeCanvas)
-  const containerRefs = useRef<(HTMLDivElement | null)[]>([]);
+  // Inline rename state
+  const [renamingIndex, setRenamingIndex] = useState<number | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const renameInputRef = useRef<HTMLInputElement>(null);
 
-  const setContainerRef = useCallback(
-    (el: HTMLDivElement | null, index: number) => {
-      containerRefs.current[index] = el;
+  const startRename = useCallback(
+    (index: number, currentLabel: string) => {
+      setRenamingIndex(index);
+      setRenameValue(currentLabel);
+      // Focus after render
+      requestAnimationFrame(() => {
+        renameInputRef.current?.focus();
+        renameInputRef.current?.select();
+      });
     },
     []
   );
+
+  const finishRename = useCallback(() => {
+    if (renamingIndex !== null) {
+      const trimmed = renameValue.trim();
+      if (trimmed && trimmed !== trees[renamingIndex]?.label) {
+        onRenameSection?.(renamingIndex, trimmed);
+      }
+      setRenamingIndex(null);
+      setRenameValue("");
+    }
+  }, [renamingIndex, renameValue, trees, onRenameSection]);
+
+  const cancelRename = useCallback(() => {
+    setRenamingIndex(null);
+    setRenameValue("");
+  }, []);
 
   if (trees.length === 0) return null;
 
   return (
     <div className="tree-stack">
-      {/* ── Tab bar ────────────────────────────────────── */}
-      <div className="tree-tabs">
+      {/* ── Section buttons row ─────────────────────────── */}
+      <div className="tree-section-btns">
         {trees.map((t, i) => (
-          <button
-            key={i}
-            className={`tree-tab ${i === activeIndex ? "tree-tab--active" : ""}`}
-            style={
-              {
-                "--tab-accent": SECTION_ACCENTS[i % SECTION_ACCENTS.length],
-              } as React.CSSProperties
-            }
-            onClick={() => onActiveChange(i)}
-          >
-            <span className="tree-tab-dot" />
-            {t.label}
-          </button>
+          <div key={i} className="tree-section-btn-wrap">
+            {renamingIndex === i ? (
+              <div
+                className="tree-section-btn tree-section-btn--active tree-section-btn--editing"
+                style={
+                  {
+                    "--tab-accent": SECTION_ACCENTS[i % SECTION_ACCENTS.length],
+                  } as React.CSSProperties
+                }
+              >
+                <span className="tree-section-dot" />
+                <input
+                  ref={renameInputRef}
+                  className="tree-section-rename-input"
+                  type="text"
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      finishRename();
+                    }
+                    if (e.key === "Escape") cancelRename();
+                  }}
+                  onBlur={finishRename}
+                />
+              </div>
+            ) : (
+              <button
+                className={`tree-section-btn ${i === activeIndex ? "tree-section-btn--active" : ""}`}
+                style={
+                  {
+                    "--tab-accent": SECTION_ACCENTS[i % SECTION_ACCENTS.length],
+                  } as React.CSSProperties
+                }
+                onClick={() => onActiveChange(i)}
+                onDoubleClick={() => startRename(i, t.label)}
+              >
+                <span className="tree-section-dot" />
+                {t.label}
+              </button>
+            )}
+
+            {/* Remove button (only if more than 1 section) */}
+            {trees.length > 1 && onRemoveSection && (
+              <button
+                className="tree-section-remove"
+                title={`Remove ${t.label}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRemoveSection(i);
+                }}
+              >
+                <CrossIcon />
+              </button>
+            )}
+          </div>
         ))}
+
+        {/* Add section button */}
+        {onAddSection && (
+          <button
+            className="tree-section-btn tree-section-btn--add"
+            onClick={onAddSection}
+            title="Add section"
+          >
+            <PlusIcon />
+          </button>
+        )}
       </div>
 
-      {/* ── Stacked tree layers ────────────────────────── */}
+      {/* ── Tree layers ────────────────────────────────── */}
       <div className="tree-stack-viewport">
         {trees.map((t, i) => {
           const isActive = i === activeIndex;
@@ -90,19 +218,13 @@ export default function TreeStack({
                 } as React.CSSProperties
               }
             >
-              <div
-                className="tree-container"
-                ref={(el) => setContainerRef(el, i)}
-              >
+              <div className="tree-container">
                 <EdgeCanvas
-                  containerRef={{
-                    current: containerRefs.current[i] ?? null,
-                  }}
                   deps={[t.root, isActive]}
                   color={
                     isActive
                       ? SECTION_ACCENTS[i % SECTION_ACCENTS.length] + "40"
-                      : "rgba(80,80,120,0.12)"
+                      : "rgba(0,119,182,0.12)"
                   }
                   lineWidth={isActive ? 1.5 : 1}
                 />
