@@ -1,0 +1,7 @@
+We built Ruben, an exploratory tool that lets people experiment and create music while gaining intuition for how models interpret images, videos, and text.
+
+The workflow has two stages. First, you choose the source material you want to translate into music; videos, audio recordings, or photos. These inputs are sent to Kimi K2.5, which runs an agentic loop to gather contextual information (for example, where the photos were taken and relevant cultural background). From this, it generates a Sonic Blueprint: a hierarchical representation of how the model "reads" your inputs and the kinds of music it believes best match them.
+
+Second, you can explore and edit the Sonic Blueprint; tweaking nodes, reshaping the structure, and refining the representation. Once you're happy with a proof of concept, you can trigger a call to a music generation model, optionally providing reference audio to guide the style. That request combines your reference audio (if provided) with a prompt derived from the Sonic Blueprint and submits it for generation. Each run creates a versioned checkpoint you can branch from or return to later, making it easy to compare versions and track how changes in the Blueprint affect the output.
+
+The result is an iterative process we think of as "visual git for artists": a way to version and inspect creative prompts, and to study how an agentic LLM reasons about cultural context.
