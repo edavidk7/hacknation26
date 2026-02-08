@@ -10,9 +10,12 @@ import {
   addVisualChild,
 } from "./utils/visualTree";
 import { transformSongCharacteristicsToVibeTree } from "./utils/transform";
+import { createHistoryEntry, type HistoryEntry } from "./utils/history";
+import { diffTrees, type NodeDiff } from "./utils/treeDiff";
 import TreeStack from "./components/TreeStack";
 import type { TreeData } from "./components/TreeStack";
 import DetailPanel from "./components/DetailPanel";
+import HistorySidebar from "./components/HistorySidebar";
 import "./App.css";
 
 // API base URL: empty string means same-origin (production), or override via env var (dev)
@@ -32,7 +35,6 @@ function App() {
   // ── Vibe Tree state ────────────────────────────────
   const [tree, setTree] = useState<VibeTree | null>(null);
   const [generating, setGenerating] = useState(false);
-  
 
   // ── Visual trees (one per section) ─────────────────
   const [visualTrees, setVisualTrees] = useState<VisualNode[]>([]);
@@ -45,6 +47,10 @@ function App() {
   const [musicDescriptions, setMusicDescriptions] = useState<Record<string, unknown> | null>(null);
   const [songDuration, setSongDuration] = useState<number>(30);
 
+  // ── History state ──────────────────────────────────────
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [currentHistoryId, setCurrentHistoryId] = useState<string | null>(null);
+  const [treeDiffs, setTreeDiffs] = useState<Map<string, NodeDiff[]>>(new Map());
   // ── Derived ────────────────────────────────────────
   const treeDataArray: TreeData[] = useMemo(() => {
     if (!tree) return [];
@@ -225,6 +231,26 @@ function App() {
     setSelectedNodeId(nodeId);
   }, []);
 
+  // ── Handler: restore from history ─────────────────────
+  const handleHistorySelect = useCallback((entry: HistoryEntry) => {
+    setTree(entry.tree);
+    setVisualTrees(entry.visualTrees);
+    setActiveSection(0);
+    setSelectedNodeId(null);
+    setCurrentHistoryId(entry.id);
+
+    // Compute diffs relative to current (active) tree
+    const newDiffs = new Map<string, NodeDiff[]>();
+    if (tree) {
+      entry.visualTrees.forEach((historyVTree, i) => {
+        const currentVTree = visualTrees[i];
+        const diff = diffTrees(historyVTree, currentVTree || null);
+        newDiffs.set(historyVTree.id, [diff]);
+      });
+    }
+    setTreeDiffs(newDiffs);
+  }, [tree, visualTrees]);
+
   // ── Handler: update section from detail panel ──────
   const handleUpdateSection = useCallback(
     (updater: (s: Section) => Section) => {
@@ -283,6 +309,30 @@ function App() {
           if (!job.result) throw new Error("No result returned");
           setAudioUrl(`${API_BASE}${job.result.audio_url}`);
           setMusicDescriptions(job.result.descriptions);
+
+          // Add to history after music generation completes
+          const flattenedPrompt = tree ? flattenTree(tree) : null;
+          const audioUrl = `${API_BASE}${job.result.audio_url}`;
+          const entry = createHistoryEntry(
+            prompt,
+            tree!,
+            visualTrees,
+            flattenedPrompt,
+            audioUrl,
+            job.result.descriptions
+          );
+          setHistory((prev) => [entry, ...prev]);
+          setCurrentHistoryId(entry.id);
+
+          // Compute diffs
+          const newDiffs = new Map<string, NodeDiff[]>();
+          visualTrees.forEach((vTree, i) => {
+            const prevTree = history.length > 0 ? history[0].visualTrees[i] : null;
+            const diff = diffTrees(vTree, prevTree || null);
+            newDiffs.set(vTree.id, [diff]);
+          });
+          setTreeDiffs(newDiffs);
+
           completed = true;
         } else if (job.status === "failed") {
           throw new Error(job.error || "Music generation failed");
@@ -354,6 +404,13 @@ function App() {
 
   return (
     <div className="app">
+      {/* ── History Sidebar ─────────────────────────── */}
+      <HistorySidebar
+        history={history}
+        currentEntryId={currentHistoryId}
+        onSelect={handleHistorySelect}
+      />
+
       {/* ── Header ──────────────────────────────────── */}
       <header className="header">
         <div className="header-content">
@@ -585,6 +642,7 @@ function App() {
                 onAddSection={handleAddSection}
                 onRemoveSection={handleRemoveSection}
                 onRenameSection={handleRenameSection}
+                diffMap={treeDiffs}
               />
             </section>
 

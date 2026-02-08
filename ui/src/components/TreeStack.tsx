@@ -1,4 +1,5 @@
 import type { VisualNode } from "../utils/types";
+import type { NodeDiff } from "../utils/treeDiff";
 import TreeNode from "./TreeNode";
 import EdgeCanvas from "./EdgeCanvas";
 
@@ -32,6 +33,7 @@ interface Props {
   onAddSection?: () => void;
   onRemoveSection?: (index: number) => void;
   onRenameSection?: (index: number, newName: string) => void;
+  diffMap?: Map<string, NodeDiff[]>;
 }
 
 export type { TreeData };
@@ -44,10 +46,34 @@ export default function TreeStack({
   onAdd,
   onSelect,
   selectedId,
+  diffMap,
 }: Props) {
   if (trees.length === 0) return null;
 
   const activeTree = trees[activeIndex];
+
+  // Helper to find diff status for a node
+  const findDiffStatus = (nodeId: string): "added" | "removed" | "changed" | "unchanged" => {
+    const diffs = diffMap?.get(activeTree.root.id);
+    if (!diffs) return "unchanged";
+
+    const findInDiff = (diff: NodeDiff): any => {
+      if (diff.id === nodeId) return diff.status;
+      if (diff.childrenDiff) {
+        for (const child of diff.childrenDiff) {
+          const found = findInDiff(child);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+
+    for (const diff of diffs) {
+      const status = findInDiff(diff);
+      if (status) return status;
+    }
+    return "unchanged";
+  };
 
   return (
     <div className="tree-stack">
@@ -78,6 +104,8 @@ export default function TreeStack({
               onAdd={(parentId) => onAdd(activeIndex, parentId)}
               onSelect={(id) => onSelect?.(id)}
               selectedId={selectedId}
+              diffStatus={findDiffStatus(activeTree.root.id)}
+              findDiffStatus={findDiffStatus}
             />
           </div>
         </div>

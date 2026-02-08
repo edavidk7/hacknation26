@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import type { VisualNode, NodeKind } from "../utils/types";
+import type { DiffStatus } from "../utils/treeDiff";
 
 // ── Kind → color mapping ────────────────────────────────
 
@@ -50,6 +51,8 @@ interface Props {
   onAdd: (parentId: string) => void;
   onSelect?: (id: string) => void;
   selectedId?: string | null;
+  diffStatus?: DiffStatus;
+  findDiffStatus?: (nodeId: string) => DiffStatus;
 }
 
 export default function TreeNode({
@@ -60,6 +63,8 @@ export default function TreeNode({
   onAdd,
   onSelect,
   selectedId,
+  diffStatus = "unchanged",
+  findDiffStatus,
 }: Props) {
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(node.label);
@@ -97,7 +102,7 @@ export default function TreeNode({
     <div className="branch">
       <div className="node-wrap">
         <div
-          className={`node ${isRoot ? "node--root" : ""} ${isSelected ? "node--selected" : ""}`}
+          className={`node ${isRoot ? "node--root" : ""} ${isSelected ? "node--selected" : ""} ${diffStatus !== "unchanged" ? `node--${diffStatus}` : ""}`}
           data-node-id={node.id}
           style={{
             "--accent": accentColor,
@@ -183,6 +188,8 @@ export default function TreeNode({
               onAdd={onAdd}
               onSelect={onSelect}
               selectedId={selectedId}
+              diffStatus={findDiffStatus ? findDiffStatus(child.id) : "unchanged"}
+              findDiffStatus={findDiffStatus}
             />
           ))}
         </div>
