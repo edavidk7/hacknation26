@@ -31,12 +31,17 @@ For each input you receive, comprehensively analyze:
 6. **Harmonic & Melodic Language**: What key signatures, chord progressions, melodic \
    contours, and harmonic tensions are present or suggested?
 
-IMPORTANT: Use the web_search tool to research and gather context about:
+IMPORTANT: Optionally use the web_search tool to research and gather context about:
 - Any recognizable locations, landmarks, or places shown in images/video
 - Named entities, people, or historical events mentioned in text or visible in media
 - Music genres, artists, or songs referenced in the inputs
 - Cultural or contextual information that enriches understanding of the mood/theme
 - Any specific objects, art styles, or design elements that could inform sonic choices
+
+Use web_search strategically when you identify specific, searchable entities, but do NOT force searches \
+for every analysis. The direct sensory analysis of the inputs is often more valuable than web results. \
+Proceed with your analysis based on what you can observe directly from the inputs, using web search \
+only when you recognize specific named entities, places, or references worth investigating. \
 
 Then synthesize these observations into a comprehensive, hierarchical tree structure \
 that captures the essence of the memory from multiple perspectives.
