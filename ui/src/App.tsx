@@ -47,6 +47,9 @@ function App() {
   const [generatingMusic, setGeneratingMusic] = useState(false);
   const [musicDescriptions, setMusicDescriptions] = useState<Record<string, unknown> | null>(null);
   const [songDuration, setSongDuration] = useState<number>(30);
+  const [bpm, setBpm] = useState<number>(54);
+  const [key, setKey] = useState<string>("F major");
+  const [timeSignature, setTimeSignature] = useState<string>("4/4");
 
   // ── History state ──────────────────────────────────────
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -511,7 +514,7 @@ function App() {
         <div className="header-content">
           <img src="/ruben.jpg" alt="Ruben" className="logo-avatar" />
           <h1 className="logo-text">Ruben</h1>
-          <span className="logo-sub">multimodal music generation</span>
+          <span className="logo-sub">multimodal music composer</span>
         </div>
       </header>
 
@@ -723,6 +726,12 @@ function App() {
         {/* ── Tree Visualization ────────────────────────── */}
         {tree && treeDataArray.length > 0 && (
           <>
+            {/* Sonic Blueprint Title */}
+            <div className="sonic-blueprint-header">
+              <h2 className="sonic-blueprint-title">Sonic Blueprint</h2>
+              <hr className="sonic-blueprint-divider" />
+            </div>
+
             {/* Tree (full-bleed) */}
             <section className="panel tree-panel">
               <TreeStack
@@ -756,25 +765,110 @@ function App() {
 
             {/* Generate Music button */}
             <section className="panel conduct-panel">
-              <div className="duration-control">
-                <label className="input-label duration-label">
-                  Song Duration
-                </label>
-                <div className="duration-slider-row">
-                  <span className="duration-bound">10s</span>
+              <div className="music-controls-grid">
+                {/* Duration Control */}
+                <div className="music-control-item">
+                  <label className="music-control-label">Song Duration</label>
+                  <div className="duration-slider-row">
+                    <span className="duration-bound">10s</span>
+                    <input
+                      type="range"
+                      className="duration-slider"
+                      min="10"
+                      max="240"
+                      step="1"
+                      value={songDuration}
+                      onChange={(e) => setSongDuration(parseFloat(e.target.value))}
+                    />
+                    <span className="duration-bound">240s</span>
+                    <span className="duration-value">{songDuration}s</span>
+                  </div>
+                </div>
+
+                {/* BPM Control */}
+                <div className="music-control-item">
+                  <label className="music-control-label">BPM</label>
                   <input
-                    type="range"
-                    className="duration-slider"
-                    min="10"
-                    max="240"
-                    step="1"
-                    value={songDuration}
-                    onChange={(e) => setSongDuration(parseFloat(e.target.value))}
+                    type="number"
+                    className="music-control-input"
+                    min="40"
+                    max="200"
+                    value={bpm}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '') {
+                        setBpm(40);
+                      } else {
+                        const num = parseInt(val, 10);
+                        if (!isNaN(num)) {
+                          setBpm(Math.max(40, Math.min(200, num)));
+                        }
+                      }
+                    }}
+                    onBlur={(e) => {
+                      const val = e.target.value;
+                      if (val === '' || isNaN(parseInt(val, 10))) {
+                        setBpm(54);
+                      }
+                    }}
                   />
-                  <span className="duration-bound">240s</span>
-                  <span className="duration-value">{songDuration}s</span>
+                </div>
+
+                {/* Key Control */}
+                <div className="music-control-item">
+                  <label className="music-control-label">Key</label>
+                  <select
+                    className="music-control-select"
+                    value={key}
+                    onChange={(e) => setKey(e.target.value)}
+                  >
+                    <option value="C major">C major</option>
+                    <option value="C minor">C minor</option>
+                    <option value="C# major">C# major</option>
+                    <option value="C# minor">C# minor</option>
+                    <option value="D major">D major</option>
+                    <option value="D minor">D minor</option>
+                    <option value="D# major">D# major</option>
+                    <option value="D# minor">D# minor</option>
+                    <option value="E major">E major</option>
+                    <option value="E minor">E minor</option>
+                    <option value="F major">F major</option>
+                    <option value="F minor">F minor</option>
+                    <option value="F# major">F# major</option>
+                    <option value="F# minor">F# minor</option>
+                    <option value="G major">G major</option>
+                    <option value="G minor">G minor</option>
+                    <option value="G# major">G# major</option>
+                    <option value="G# minor">G# minor</option>
+                    <option value="A major">A major</option>
+                    <option value="A minor">A minor</option>
+                    <option value="A# major">A# major</option>
+                    <option value="A# minor">A# minor</option>
+                    <option value="B major">B major</option>
+                    <option value="B minor">B minor</option>
+                  </select>
+                </div>
+
+                {/* Time Signature Control */}
+                <div className="music-control-item">
+                  <label className="music-control-label">Time Signature</label>
+                  <select
+                    className="music-control-select"
+                    value={timeSignature}
+                    onChange={(e) => setTimeSignature(e.target.value)}
+                  >
+                    <option value="2/4">2/4</option>
+                    <option value="3/4">3/4</option>
+                    <option value="4/4">4/4</option>
+                    <option value="5/4">5/4</option>
+                    <option value="6/8">6/8</option>
+                    <option value="7/8">7/8</option>
+                    <option value="9/8">9/8</option>
+                    <option value="12/8">12/8</option>
+                  </select>
                 </div>
               </div>
+
               <button
                 className="btn btn--primary btn--compact"
                 onClick={handleMusicGenerate}
@@ -794,13 +888,11 @@ function App() {
         )}
 
         {/* ── Audio Player + Descriptions ─────────────────── */}
-        {(audioUrl || generatingMusic) && (
+        {audioUrl && (
           <section className="panel audio-panel">
             <h2 className="panel-title">Output</h2>
-            {audioUrl && (
-              <>
-                <audio ref={playerRef} src={audioUrl} preload="metadata" />
-                <div className="custom-player">
+            <audio ref={playerRef} src={audioUrl} preload="metadata" />
+            <div className="custom-player">
                   <button className="player-play-btn" onClick={togglePlay}>
                     {isPlaying ? (
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
@@ -830,17 +922,9 @@ function App() {
                       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                       <polyline points="7 10 12 15 17 10" />
                       <line x1="12" y1="15" x2="12" y2="3" />
-                    </svg>
-                  </button>
-                </div>
-              </>
-            )}
-            {generatingMusic && !audioUrl && (
-              <p className="conducting-text">
-                <span className="dots-loader"><span /><span /><span /></span>
-                Conducting
-              </p>
-            )}
+                  </svg>
+                </button>
+              </div>
             {musicDescriptions && (
               <div className="music-descriptions">
                 <h3 className="flattened-title">Musician's Analysis</h3>

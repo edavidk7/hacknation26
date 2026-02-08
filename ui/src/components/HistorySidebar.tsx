@@ -14,7 +14,6 @@ export default function HistorySidebar({
   onSelect,
 }: Props) {
   const [playingId, setPlayingId] = useState<string | null>(null);
-  const [isExpanded, setIsExpanded] = useState(true);
   const audioRef = useRef<HTMLAudioElement>(null);
 
   // Handle audio playback
@@ -43,20 +42,9 @@ export default function HistorySidebar({
 
   if (history.length === 0) {
     return (
-      <aside className={`history-sidebar history-sidebar--empty ${isExpanded ? 'history-sidebar--expanded' : 'history-sidebar--collapsed'}`}>
-        <button 
-          className="history-toggle"
-          onClick={() => setIsExpanded(!isExpanded)}
-          title={isExpanded ? "Collapse history" : "Expand history"}
-        >
-          {isExpanded ? '→' : '←'}
-        </button>
-        {isExpanded && (
-          <>
-            <h3 className="history-title">Generation History</h3>
-            <p className="history-empty">No generations yet</p>
-          </>
-        )}
+      <aside className="history-sidebar history-sidebar--empty">
+        <h3 className="history-title">Generation History</h3>
+        <p className="history-empty">No generations yet</p>
       </aside>
     );
   }
@@ -77,18 +65,9 @@ export default function HistorySidebar({
   }
 
   return (
-    <aside className={`history-sidebar ${isExpanded ? 'history-sidebar--expanded' : 'history-sidebar--collapsed'}`}>
-      <button 
-        className="history-toggle"
-        onClick={() => setIsExpanded(!isExpanded)}
-        title={isExpanded ? "Collapse history" : "Expand history"}
-      >
-        {isExpanded ? '→' : '←'}
-      </button>
-      {isExpanded && (
-        <>
-          <h3 className="history-title">Generation History</h3>
-          <div className="history-list">
+    <aside className="history-sidebar">
+      <h3 className="history-title">Generation History</h3>
+      <div className="history-list">
         {Array.from(grouped.entries()).map(([date, entries]) => (
           <div key={date} className="history-group">
             <div className="history-date-label">{date}</div>
@@ -129,8 +108,6 @@ export default function HistorySidebar({
           </div>
         ))}
       </div>
-        </>
-      )}
       <audio
         ref={audioRef}
         onEnded={() => setPlayingId(null)}
