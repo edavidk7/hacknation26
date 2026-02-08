@@ -10,6 +10,10 @@ Running on a multimodal set of inputs produces an intermediate representation:
 
 ![Sonic Blueprint editor](screenshots/ruben_sonic_blueprint.png)
 
+## Try It Out
+
+A live demo is available at **http://157.230.208.203/**
+
 ## How It Works
 
 1. **Upload** source material — photos, videos, audio, or text descriptions
