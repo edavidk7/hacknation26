@@ -71,6 +71,77 @@ Create `python-backend/.env` from `.env.example`:
 | `THINKING_BUDGET` | No | Kimi K2.5 thinking budget in tokens |
 | `USE_MOCK` | No | Set `true` to skip API calls during development |
 
+## ACE-Step Server Setup
+
+The music generation backend runs ACE-Step 1.5 on a GPU machine and is exposed to the Ruben app via an ngrok tunnel.
+
+### Requirements
+
+- **Python 3.11**
+- **CUDA GPU** with at least 4 GB VRAM (12 GB+ recommended for LLM features)
+- **ngrok** account with an authtoken (and optionally a reserved domain)
+
+### 1. Install dependencies
+
+```bash
+cd ace_step
+
+# Option A: using uv (recommended)
+uv sync
+
+# Option B: using pip
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+pip install -e acestep/third_parts/nano-vllm   # optional, for faster LLM inference
+```
+
+### 2. Download models
+
+Models are downloaded automatically on first run, or you can fetch them upfront:
+
+```bash
+uv run acestep-download          # downloads the default model set
+# or
+python -m acestep.model_downloader
+```
+
+### 3. Start the API server
+
+```bash
+uv run acestep-api               # listens on 0.0.0.0:8001
+# or
+python acestep/api_server.py
+```
+
+### 4. Expose via ngrok
+
+Create a `.ngrok_env` file in the `ace_step/` directory:
+
+```
+NGROK_AUTHTOKEN=<your-ngrok-authtoken>
+NGROK_DOMAIN=<your-reserved-domain>          # optional
+AUTH_USERNAME=<basic-auth-user>               # optional
+AUTH_PASSWORD=<basic-auth-pass>               # optional
+```
+
+Then run the tunnel (in a separate terminal):
+
+```bash
+python ace_endpoint.py
+```
+
+This prints the public URL (e.g. `https://your-domain.ngrok-free.dev`).
+
+### 5. Point Ruben at the tunnel
+
+In `python-backend/.env`, set:
+
+```
+ACESTEP_API_URL=https://your-domain.ngrok-free.dev
+ACESTEP_API_USER=<basic-auth-user>            # if you set one above
+ACESTEP_API_PASS=<basic-auth-pass>
+```
+
 ## Project Structure
 
 ```
