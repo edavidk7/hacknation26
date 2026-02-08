@@ -41,6 +41,16 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Log agent steps to stderr.",
     )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Log full debug trace of context, tool calls, and agent messages.",
+    )
+    parser.add_argument(
+        "--no-web-search",
+        action="store_true",
+        help="Disable web search in the agent.",
+    )
     return parser.parse_args()
 
 
@@ -57,6 +67,8 @@ async def main() -> None:
         model_name=args.model,
         max_video_frames=args.max_video_frames,
         verbose=args.verbose,
+        debug=args.debug,
+        disable_web_search=args.no_web_search,
     )
 
     print(prompt.model_dump_json(indent=2))

@@ -9,3 +9,8 @@ dependencies = [
     "pillow",
     "httpx",
 ]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+]
