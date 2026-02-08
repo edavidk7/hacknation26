@@ -13,32 +13,30 @@ services:
       - ACESTEP_API_USER=${ACESTEP_API_USER}
       - ACESTEP_API_PASS=${ACESTEP_API_PASS}
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   ui:
     build:
       context: ./ui
       dockerfile: Dockerfile
-      args:
-        VITE_API_URL: https://ruben-multimodal-composer.ai
+    ports:
+      - "80:80"
+    depends_on:
+      - api
     restart: unless-stopped
 
   nginx:
     image: nginx:alpine
     ports:
-      - "80:80"
       - "443:443"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./certbot/conf:/etc/letsencrypt:ro
-      - ./certbot/www:/var/www/certbot:ro
+      - ./ssl:/etc/nginx/ssl:ro
     depends_on:
       - api
       - ui
     restart: unless-stopped
-
-  certbot:
-    image: certbot/certbot:latest
-    volumes:
-      - ./certbot/conf:/etc/letsencrypt
-      - ./certbot/www:/var/www/certbot
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
