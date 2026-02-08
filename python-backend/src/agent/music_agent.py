@@ -120,7 +120,7 @@ def prepare_content(
     return content
 
 
-def _handle_tool_calls(client: OpenAI, model: str, messages: list[dict]) -> tuple[list[dict], bool]:
+def _handle_tool_calls(client: OpenAI, model: str, messages: list[dict], thinking_budget: int | None = None) -> tuple[list[dict], bool]:
     """Handle tool calls in the conversation.
     
     Returns:
@@ -128,15 +128,19 @@ def _handle_tool_calls(client: OpenAI, model: str, messages: list[dict]) -> tupl
     """
     has_tool_calls = False
     
-    response = client.chat.completions.create(
-        model=model,
-        messages=messages,
-        tools=[{
+    params = {
+        "model": model,
+        "messages": messages,
+        "tools": [{
             "type": "builtin_function",
             "function": {"name": "$web_search"}
         }],
-        temperature=0.6,
-    )
+        "temperature": 0.6,
+    }
+    if thinking_budget is not None:
+        params["thinking"] = {"type": "enabled", "budget_tokens": thinking_budget}
+    
+    response = client.chat.completions.create(**params)
     
     # Add assistant response to messages
     assistant_msg = {
@@ -175,6 +179,7 @@ async def generate_music_prompt(
     debug: bool = False,
     disable_web_search: bool = False,
     use_mock: bool = False,
+    thinking_budget: int | None = None,
 ) -> SongCharacteristics:
     """Main entry point: analyze multimodal inputs and produce structured song characteristics.
 
@@ -187,6 +192,7 @@ async def generate_music_prompt(
         debug: If True, log full debug trace of context and tool calls.
         disable_web_search: If True, disable web search tool in the agent.
         use_mock: If True, return mock vibe tree data without calling the model.
+        thinking_budget: Optional thinking token budget for models like Kimi K2.5 (default: None).
 
     Returns:
         A tree-structured SongCharacteristics object ready for frontend editing and markdown conversion.
@@ -233,14 +239,17 @@ async def generate_music_prompt(
     
     # Call model with web search tool
     if not disable_web_search:
-        messages, has_tool_calls = _handle_tool_calls(client, model_display, messages)
+        messages, has_tool_calls = _handle_tool_calls(client, model_display, messages, thinking_budget)
     else:
         # Call without web search
-        response = client.chat.completions.create(
-            model=model_display,
-            messages=messages,
-            temperature=0.6,
-        )
+        params = {
+            "model": model_display,
+            "messages": messages,
+            "temperature": 0.6,
+        }
+        if thinking_budget is not None:
+            params["thinking"] = {"type": "enabled", "budget_tokens": thinking_budget}
+        response = client.chat.completions.create(**params)
         messages.append({
             "role": "assistant",
             "content": response.choices[0].message.content or "",

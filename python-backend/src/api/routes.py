@@ -63,7 +63,7 @@ def create_app() -> FastAPI:
         model_name: Optional[str] = Form(None),
         max_video_frames: int = Form(6),
         disable_web_search: bool = Form(False),
-        use_mock: bool = Form(True),
+        use_mock: bool = Form(False),
         files: list[UploadFile] = File(default=[]),
         background_tasks: BackgroundTasks = BackgroundTasks(),
     ) -> dict:
@@ -211,6 +211,15 @@ async def _run_generation(
 
         # Step 1: Generate vibe tree
         log.info(f"[{job_id}] Generating vibe tree...")
+        
+        # Get thinking budget from environment or use default
+        thinking_budget = None
+        if os.getenv("THINKING_BUDGET"):
+            try:
+                thinking_budget = int(os.getenv("THINKING_BUDGET"))
+            except ValueError:
+                log.warning("Invalid THINKING_BUDGET env var, using default")
+        
         vibe_tree = await generate_music_prompt(
             file_paths=file_paths if file_paths else None,
             text=text,
@@ -220,6 +229,7 @@ async def _run_generation(
             debug=False,
             disable_web_search=disable_web_search,
             use_mock=use_mock,
+            thinking_budget=thinking_budget,
         )
 
         # Convert to dict for storage

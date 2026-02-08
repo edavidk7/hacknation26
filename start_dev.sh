@@ -23,6 +23,12 @@ else
     echo ""
 fi
 
+# Optional: Set development options
+# Uncomment to use mock vibe tree (fast development):
+#   export USE_MOCK=true
+# Uncomment to set Kimi K2.5 thinking budget (in tokens, lower = faster):
+#   export THINKING_BUDGET=1000
+
 # Store PIDs
 API_PID=""
 UI_PID=""
@@ -43,7 +49,7 @@ cleanup() {
 
 trap cleanup SIGINT SIGTERM
 
-# Start backend API
+# Start backend API (environment variables are inherited)
 echo "Starting API server on http://127.0.0.1:8000"
 cd "$DIR/python-backend"
 uv run api_server.py &
