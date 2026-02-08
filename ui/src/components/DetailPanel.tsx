@@ -71,11 +71,13 @@ function getInstrumentDetail(
   instrumentName: string
 ): InstrumentDetail {
   if (!section) return { role: "texture", character: "" };
-  const inst = section.branches.instruments.find(
-    (i) => i.name === instrumentName
+  const instruments = section.branches.instruments;
+  if (!Array.isArray(instruments)) return { role: "texture", character: "" };
+  const inst = instruments.find(
+    (i: any) => i.name === instrumentName
   );
   return inst
-    ? { role: inst.role, character: inst.character }
+    ? { role: inst.role || "texture", character: inst.character || "" }
     : { role: "texture", character: "" };
 }
 
@@ -116,8 +118,10 @@ export default function DetailPanel({
       if (!node || !section) return;
       onUpdateSection((s) => {
         const updated = structuredClone(s);
-        const inst = updated.branches.instruments.find(
-          (i) => i.name === node.label
+        const instruments = (updated.branches as any).instruments;
+        if (!Array.isArray(instruments)) return updated;
+        const inst = instruments.find(
+          (i: any) => i.name === node.label
         );
         if (inst) {
           if (field === "role") inst.role = value;
@@ -222,21 +226,19 @@ export default function DetailPanel({
         </div>
       )}
 
-      {/* Texture node: show density / movement / space */}
-      {node.kind === "texture" && section && (
+      {/* Texture node: show density / movement / space (legacy branches only) */}
+      {node.kind === "texture" && section && (section.branches as any).texture && (
         <div className="detail-texture">
           <div className="detail-field">
             <span className="detail-field-label">Density</span>
             <select
               className="detail-select"
-              value={section.branches.texture.density}
+              value={(section.branches as any).texture?.density ?? "moderate"}
               onChange={(e) =>
                 onUpdateSection((s) => {
                   const u = structuredClone(s);
-                  u.branches.texture.density = e.target.value as
-                    | "sparse"
-                    | "moderate"
-                    | "dense";
+                  if (!(u.branches as any).texture) (u.branches as any).texture = {};
+                  (u.branches as any).texture.density = e.target.value;
                   return u;
                 })
               }
@@ -250,14 +252,12 @@ export default function DetailPanel({
             <span className="detail-field-label">Movement</span>
             <select
               className="detail-select"
-              value={section.branches.texture.movement}
+              value={(section.branches as any).texture?.movement ?? "slow-evolving"}
               onChange={(e) =>
                 onUpdateSection((s) => {
                   const u = structuredClone(s);
-                  u.branches.texture.movement = e.target.value as
-                    | "static"
-                    | "slow-evolving"
-                    | "dynamic";
+                  if (!(u.branches as any).texture) (u.branches as any).texture = {};
+                  (u.branches as any).texture.movement = e.target.value;
                   return u;
                 })
               }
@@ -271,14 +271,12 @@ export default function DetailPanel({
             <span className="detail-field-label">Space</span>
             <select
               className="detail-select"
-              value={section.branches.texture.space}
+              value={(section.branches as any).texture?.space ?? "open"}
               onChange={(e) =>
                 onUpdateSection((s) => {
                   const u = structuredClone(s);
-                  u.branches.texture.space = e.target.value as
-                    | "intimate"
-                    | "open"
-                    | "vast";
+                  if (!(u.branches as any).texture) (u.branches as any).texture = {};
+                  (u.branches as any).texture.space = e.target.value;
                   return u;
                 })
               }
@@ -291,8 +289,8 @@ export default function DetailPanel({
         </div>
       )}
 
-      {/* Section node: show metadata */}
-      {node.kind === "section" && section && (
+      {/* Section node: show metadata (legacy branches only) */}
+      {node.kind === "section" && section && (section.branches as any).metadata && (
         <div className="detail-metadata">
           <h4 className="detail-section-title">Metadata</h4>
           <div className="detail-field">
@@ -300,11 +298,12 @@ export default function DetailPanel({
             <input
               className="detail-input"
               type="text"
-              value={section.branches.metadata.tempo_feel}
+              value={(section.branches as any).metadata?.tempo_feel ?? ""}
               onChange={(e) =>
                 onUpdateSection((s) => {
                   const u = structuredClone(s);
-                  u.branches.metadata.tempo_feel = e.target.value;
+                  if (!(u.branches as any).metadata) (u.branches as any).metadata = {};
+                  (u.branches as any).metadata.tempo_feel = e.target.value;
                   return u;
                 })
               }
@@ -315,11 +314,12 @@ export default function DetailPanel({
             <input
               className="detail-input detail-input--number"
               type="number"
-              value={section.branches.metadata.suggested_bpm ?? ""}
+              value={(section.branches as any).metadata?.suggested_bpm ?? ""}
               onChange={(e) =>
                 onUpdateSection((s) => {
                   const u = structuredClone(s);
-                  u.branches.metadata.suggested_bpm = e.target.value
+                  if (!(u.branches as any).metadata) (u.branches as any).metadata = {};
+                  (u.branches as any).metadata.suggested_bpm = e.target.value
                     ? Number(e.target.value)
                     : null;
                   return u;
@@ -333,11 +333,12 @@ export default function DetailPanel({
             <input
               className="detail-input"
               type="text"
-              value={section.branches.metadata.key ?? ""}
+              value={(section.branches as any).metadata?.key ?? ""}
               onChange={(e) =>
                 onUpdateSection((s) => {
                   const u = structuredClone(s);
-                  u.branches.metadata.key = e.target.value || null;
+                  if (!(u.branches as any).metadata) (u.branches as any).metadata = {};
+                  (u.branches as any).metadata.key = e.target.value || null;
                   return u;
                 })
               }
@@ -349,11 +350,12 @@ export default function DetailPanel({
             <input
               className="detail-input"
               type="text"
-              value={section.branches.metadata.time_signature ?? ""}
+              value={(section.branches as any).metadata?.time_signature ?? ""}
               onChange={(e) =>
                 onUpdateSection((s) => {
                   const u = structuredClone(s);
-                  u.branches.metadata.time_signature =
+                  if (!(u.branches as any).metadata) (u.branches as any).metadata = {};
+                  (u.branches as any).metadata.time_signature =
                     e.target.value || null;
                   return u;
                 })

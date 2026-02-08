@@ -6,17 +6,6 @@ import json
 import logging
 from typing import Any
 
-from pydantic_ai.messages import (
-    ModelRequest,
-    ModelResponse,
-    RetryPromptPart,
-    TextPart,
-    ThinkingPart,
-    ToolCallPart,
-    ToolReturnPart,
-    UserPromptPart,
-)
-
 log = logging.getLogger(__name__)
 
 
@@ -30,7 +19,7 @@ def _format_value(value: Any, max_length: int | None = 300) -> str:
         s = json.dumps(value, indent=2, default=str)
     else:
         s = str(value)
-    
+
     if max_length is not None and len(s) > max_length:
         return s[:max_length] + f"\n... (truncated {len(s) - max_length} chars)"
     return s
@@ -71,80 +60,6 @@ def trace_model_config(model_name: str, base_url: str) -> None:
     log.debug("=" * 80)
     log.debug(f"Model: {model_name}")
     log.debug(f"Base URL: {base_url}")
-    log.debug("=" * 80)
-
-
-def trace_messages(messages: list[ModelRequest | ModelResponse]) -> None:
-    """Log all messages in the conversation trace with full details."""
-    log.debug("=" * 80)
-    log.debug("AGENT CONVERSATION TRACE")
-    log.debug("=" * 80)
-    
-    for i, msg in enumerate(messages):
-        if isinstance(msg, ModelRequest):
-            log.debug(f"\n[MESSAGE {i}] MODEL REQUEST")
-            log.debug("-" * 40)
-            
-            for j, part in enumerate(msg.parts):
-                if isinstance(part, UserPromptPart):
-                    log.debug(f"  [Part {j}] USER PROMPT")
-                    if isinstance(part.content, str):
-                        log.debug(f"    Content: {_format_value(part.content)}")
-                    else:
-                        log.debug(f"    Multimodal content: {len(part.content)} parts")
-                        for k, subpart in enumerate(part.content):
-                            log.debug(f"      [{k}] {type(subpart).__name__}")
-                
-                elif isinstance(part, ToolReturnPart):
-                    log.debug(f"  [Part {j}] TOOL RETURN")
-                    log.debug(f"    Tool: {part.tool_name}")
-                    log.debug(f"    Content: {_format_value(part.content)}")
-                
-                elif isinstance(part, RetryPromptPart):
-                    log.debug(f"  [Part {j}] RETRY PROMPT")
-                    log.debug(f"    Content: {_format_value(part.content)}")
-        
-        elif isinstance(msg, ModelResponse):
-            log.debug(f"\n[MESSAGE {i}] MODEL RESPONSE")
-            log.debug("-" * 40)
-            
-            for j, part in enumerate(msg.parts):
-                if isinstance(part, TextPart):
-                    log.debug(f"  [Part {j}] TEXT")
-                    log.debug(f"    {_format_value(part.content)}")
-                
-                elif isinstance(part, ThinkingPart):
-                    log.debug(f"  [Part {j}] THINKING")
-                    log.debug(f"    {_format_value(part.content)}")
-                
-                elif isinstance(part, ToolCallPart):
-                    log.debug(f"  [Part {j}] TOOL CALL")
-                    log.debug(f"    Tool: {part.tool_name}")
-                    log.debug(f"    Args: {_format_value(part.args)}")
-    
-    log.debug("\n" + "=" * 80)
-    log.debug(f"TOTAL MESSAGES: {len(messages)}")
-    log.debug("=" * 80)
-
-
-def trace_tool_call(tool_name: str, args: dict[str, Any]) -> None:
-    """Log a tool call with full arguments."""
-    log.debug("=" * 80)
-    log.debug(f"TOOL CALL: {tool_name}")
-    log.debug("=" * 80)
-    log.debug(f"Arguments:\n{_format_value(args, max_length=None)}")
-    log.debug("=" * 80)
-
-
-def trace_tool_result(tool_name: str, result: Any, error: str | None = None) -> None:
-    """Log a tool result."""
-    log.debug("=" * 80)
-    log.debug(f"TOOL RESULT: {tool_name}")
-    log.debug("=" * 80)
-    if error:
-        log.debug(f"Error: {error}")
-    else:
-        log.debug(f"Result:\n{_format_value(result, max_length=None)}")
     log.debug("=" * 80)
 
 

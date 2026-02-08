@@ -47,11 +47,12 @@ export function sectionToVisualTree(section: Section): VisualNode {
   }
 
   // Fallback to old structure (mood, genre, instruments, etc.)
+  const br = b as any;
   const children: VisualNode[] = [];
 
   // Mood branch
-  if (b.mood) {
-    const moodChildren: VisualNode[] = (b.mood.nuances || []).map((n) => ({
+  if (br.mood) {
+    const moodChildren: VisualNode[] = (br.mood.nuances || []).map((n: string) => ({
       id: nodeId(),
       label: n,
       kind: "nuance" as const,
@@ -59,7 +60,7 @@ export function sectionToVisualTree(section: Section): VisualNode {
     }));
     const moodNode: VisualNode = {
       id: nodeId(),
-      label: b.mood.primary,
+      label: br.mood.primary,
       kind: "mood",
       children: moodChildren,
     };
@@ -67,8 +68,8 @@ export function sectionToVisualTree(section: Section): VisualNode {
   }
 
   // Genre branch
-  if (b.genre) {
-    const genreChildren: VisualNode[] = (b.genre.influences || []).map((inf) => ({
+  if (br.genre) {
+    const genreChildren: VisualNode[] = (br.genre.influences || []).map((inf: string) => ({
       id: nodeId(),
       label: inf,
       kind: "influence" as const,
@@ -76,7 +77,7 @@ export function sectionToVisualTree(section: Section): VisualNode {
     }));
     const genreNode: VisualNode = {
       id: nodeId(),
-      label: b.genre.primary,
+      label: br.genre.primary,
       kind: "genre",
       children: genreChildren,
     };
@@ -84,8 +85,8 @@ export function sectionToVisualTree(section: Section): VisualNode {
   }
 
   // Instruments branch
-  if (b.instruments && b.instruments.length > 0) {
-    const instChildren: VisualNode[] = b.instruments.map((inst) => ({
+  if (br.instruments && br.instruments.length > 0) {
+    const instChildren: VisualNode[] = br.instruments.map((inst: any) => ({
       id: nodeId(),
       label: inst.name,
       kind: "instrument" as const,
@@ -101,10 +102,10 @@ export function sectionToVisualTree(section: Section): VisualNode {
   }
 
   // Texture branch
-  if (b.texture) {
+  if (br.texture) {
     const textureNode: VisualNode = {
       id: nodeId(),
-      label: `${b.texture.density} · ${b.texture.movement} · ${b.texture.space}`,
+      label: `${br.texture.density} · ${br.texture.movement} · ${br.texture.space}`,
       kind: "texture",
       children: [],
     };
@@ -112,8 +113,8 @@ export function sectionToVisualTree(section: Section): VisualNode {
   }
 
   // Sonic details branch
-  if (b.sonic_details && b.sonic_details.length > 0) {
-    const sonicChildren: VisualNode[] = b.sonic_details.map((d) => ({
+  if (br.sonic_details && br.sonic_details.length > 0) {
+    const sonicChildren: VisualNode[] = br.sonic_details.map((d: string) => ({
       id: nodeId(),
       label: d,
       kind: "detail" as const,
@@ -184,34 +185,45 @@ function formatValue(value: any): string {
 /**
  * Convert a visual tree back to a partial Section update.
  * Reconstructs labels/children from the visual nodes.
+ *
+ * Handles both legacy branches (mood/genre/instruments/etc.)
+ * and SongNode-tree format (branches.tree).
  */
 export function visualTreeToSection(
   node: VisualNode,
   original: Section
 ): Section {
   const section = structuredClone(original);
+  const b = section.branches;
 
+  // If the original section uses SongNode-tree format, reconstruct it
+  if (b && typeof b === "object" && "tree" in b) {
+    (section.branches as any).tree = visualNodeToSongNode(node);
+    return section;
+  }
+
+  // Legacy format: sync individual branch types
   for (const child of node.children) {
     switch (child.kind) {
       case "mood":
         if (!section.branches.mood) {
           section.branches.mood = { primary: "", nuances: [] };
         }
-        section.branches.mood.primary = child.label;
-        section.branches.mood.nuances = child.children.map((c) => c.label);
+        (section.branches as any).mood.primary = child.label;
+        (section.branches as any).mood.nuances = child.children.map((c) => c.label);
         break;
       case "genre":
         if (!section.branches.genre) {
           section.branches.genre = { primary: "", influences: [] };
         }
-        section.branches.genre.primary = child.label;
-        section.branches.genre.influences = child.children.map((c) => c.label);
+        (section.branches as any).genre.primary = child.label;
+        (section.branches as any).genre.influences = child.children.map((c) => c.label);
         break;
       case "instruments":
-        section.branches.instruments = child.children.map((c, i) => ({
+        (section.branches as any).instruments = child.children.map((c, i) => ({
           name: c.label,
-          role: original.branches.instruments?.[i]?.role ?? "texture",
-          character: original.branches.instruments?.[i]?.character ?? "",
+          role: (original.branches as any).instruments?.[i]?.role ?? "texture",
+          character: (original.branches as any).instruments?.[i]?.character ?? "",
         }));
         break;
       case "texture":
@@ -219,12 +231,66 @@ export function visualTreeToSection(
         // Keep original unless user edits it at detail level
         break;
       case "sonic":
-        section.branches.sonic_details = child.children.map((c) => c.label);
+        (section.branches as any).sonic_details = child.children.map((c) => c.label);
         break;
     }
   }
 
   return section;
+}
+
+/**
+ * Convert a VisualNode tree back to a SongNode structure.
+ * Reverses the songNodeToVisualTree transform by parsing
+ * "name: value" labels back into { name, value, children }.
+ */
+function visualNodeToSongNode(node: VisualNode): any {
+  const { name, value } = parseLabelToNameValue(node.label);
+
+  const songNode: any = {
+    name,
+    value: value ?? null,
+    children: node.children.map((child) => visualNodeToSongNode(child)),
+    metadata: {},
+  };
+
+  return songNode;
+}
+
+/**
+ * Parse a visual node label like "name: value" back into name and value parts.
+ * The forward transform formats as "name: formattedValue".
+ */
+function parseLabelToNameValue(label: string): { name: string; value: any } {
+  const colonIdx = label.indexOf(": ");
+  if (colonIdx === -1) {
+    return { name: label, value: null };
+  }
+
+  const name = label.substring(0, colonIdx);
+  const valueStr = label.substring(colonIdx + 2);
+
+  // Try to parse as number
+  const num = Number(valueStr);
+  if (!isNaN(num) && valueStr.trim() !== "") {
+    return { name, value: num };
+  }
+
+  // Try to parse as comma-separated list (from Array.join(", "))
+  if (valueStr.includes(", ")) {
+    return { name, value: valueStr.split(", ") };
+  }
+
+  // Try to parse as JSON object
+  if (valueStr.startsWith("{") || valueStr.startsWith("[")) {
+    try {
+      return { name, value: JSON.parse(valueStr) };
+    } catch {
+      // fall through to string
+    }
+  }
+
+  return { name, value: valueStr };
 }
 
 /**

@@ -1,6 +1,5 @@
 import { useState, useMemo, useRef, useCallback } from "react";
 import type { VibeTree, VisualNode, Section } from "./utils/types";
-import { FJORD_EXAMPLE } from "./utils/sampleData";
 import { flattenTree } from "./utils/flatten";
 import {
   sectionToVisualTree,
@@ -15,7 +14,6 @@ import { transformSongCharacteristicsToVibeTree } from "./utils/transform";
 import TreeStack from "./components/TreeStack";
 import type { TreeData } from "./components/TreeStack";
 import DetailPanel from "./components/DetailPanel";
-import Showcase from "./components/Showcase";
 import "./App.css";
 
 function App() {
@@ -243,27 +241,6 @@ function App() {
       });
     },
     [tree, activeSection]
-  );
-
-  // ── Handler: global settings ───────────────────────
-  const handleGlobalArc = useCallback(
-    (value: string) => {
-      if (!tree) return;
-      const updated = structuredClone(tree);
-      updated.root.global.overall_arc = value;
-      setTree(updated);
-    },
-    [tree]
-  );
-
-  const handleGlobalDuration = useCallback(
-    (value: number) => {
-      if (!tree) return;
-      const updated = structuredClone(tree);
-      updated.root.global.duration_seconds = value;
-      setTree(updated);
-    },
-    [tree]
   );
 
   const handleMusicGenerate = async () => {
@@ -687,13 +664,13 @@ function App() {
                       <span>{String(musicDescriptions.bpm)}</span>
                     </>
                   )}
-                  {musicDescriptions.keyscale && (
+                  {!!musicDescriptions.keyscale && (
                     <>
                       <span style={{ opacity: 0.6 }}>Key</span>
                       <span>{String(musicDescriptions.keyscale)}</span>
                     </>
                   )}
-                  {musicDescriptions.timesignature && (
+                  {!!musicDescriptions.timesignature && (
                     <>
                       <span style={{ opacity: 0.6 }}>Time Signature</span>
                       <span>{String(musicDescriptions.timesignature)}</span>
@@ -705,14 +682,14 @@ function App() {
                       <span>{String(musicDescriptions.duration)}s</span>
                     </>
                   )}
-                  {musicDescriptions.genres && (
+                  {!!musicDescriptions.genres && (
                     <>
                       <span style={{ opacity: 0.6 }}>Genres</span>
                       <span>{String(musicDescriptions.genres)}</span>
                     </>
                   )}
                 </div>
-                {musicDescriptions.prompt && (
+                {!!musicDescriptions.prompt && (
                   <div style={{ marginTop: 12 }}>
                     <span style={{ opacity: 0.6, fontSize: 13 }}>LM Caption</span>
                     <pre className="flattened-pre" style={{ marginTop: 4 }}>{String(musicDescriptions.prompt)}</pre>
