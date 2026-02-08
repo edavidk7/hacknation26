@@ -2,6 +2,12 @@
 
 Ruben is an exploratory tool that lets people create music from images, videos, and text while gaining intuition for how AI models interpret multimodal inputs.
 
+## Try It Out
+
+A live demo is available at **http://157.230.208.203/**
+
+## Screenshots
+
 On startup, you will be greeted by this:
 
 ![Input page](screenshots/ruben_page.png)
@@ -9,10 +15,6 @@ On startup, you will be greeted by this:
 Running on a multimodal set of inputs produces an intermediate representation:
 
 ![Sonic Blueprint editor](screenshots/ruben_sonic_blueprint.png)
-
-## Try It Out
-
-A live demo is available at **http://157.230.208.203/**
 
 ## How It Works
 
