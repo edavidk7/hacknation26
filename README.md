@@ -60,6 +60,8 @@ docker-compose up --build
 - API: port 8000
 - UI: port 80
 
+**Note:** Docker Compose starts only the backend API and the UI. The ACE-Step music generation server requires a CUDA GPU and must be set up separately on a GPU machine (see [ACE-Step Server Setup](#ace-step-server-setup)).
+
 ## Environment Variables
 
 Create `python-backend/.env` from `.env.example`:
