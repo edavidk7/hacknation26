@@ -258,11 +258,9 @@ function App() {
     setMusicDescriptions(null);
     setAudioUrl(null);
     try {
-      const treeWithDuration = structuredClone(tree);
-      treeWithDuration.root.global.duration_seconds = songDuration;
-      
       const formData = new FormData();
-      formData.append("vibe_tree", JSON.stringify(treeWithDuration));
+      formData.append("vibe_tree", JSON.stringify(tree));
+      formData.append("audio_duration", String(songDuration));
       if (audioFile) formData.append("reference_audio", audioFile);
 
       const res = await fetch(`${API_BASE}/api/generate-music`, {
@@ -645,7 +643,7 @@ function App() {
                     onChange={(e) => setSongDuration(parseInt(e.target.value, 10))}
                     style={{ flex: 1, maxWidth: 200 }}
                   />
-                  <span style={{ minWidth: 60, textAlign: "left" }}>{songDuration}s</span>
+                  <span style={{ width: 50, textAlign: "center" }}>{songDuration}s</span>
                 </div>
               </div>
               <button

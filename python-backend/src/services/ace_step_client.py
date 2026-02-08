@@ -41,6 +41,7 @@ def song_characteristics_to_ace_step_params(
     song_chars: SongCharacteristics | dict,
     reference_audio_path: str | None = None,
     assembled_prompt: dict | None = None,
+    audio_duration: float | None = None,
 ) -> dict:
     """Convert a SongCharacteristics tree into ACE-Step /release_task parameters.
 
@@ -57,6 +58,8 @@ def song_characteristics_to_ace_step_params(
         reference_audio_path: Optional reference audio for style transfer.
         assembled_prompt: Optional dict with "prompt" (caption) and "lyrics" keys
             from the assembly pass.
+        audio_duration: Optional explicit audio duration in seconds. If provided,
+            it takes precedence over duration in the tree.
     """
     # Convert Pydantic model to dict if needed
     if isinstance(song_chars, SongCharacteristics):
@@ -73,9 +76,12 @@ def song_characteristics_to_ace_step_params(
         log.error("Could not find root in tree_dict. Keys: %s", list(tree_dict.keys()))
         root = {}
 
-    # Extract duration
-    duration = root.get("metadata", {}).get("duration_seconds")
-    audio_duration = min(float(duration), 120) if duration is not None else 30
+    # Use explicit audio_duration if provided, otherwise extract from tree
+    if audio_duration is not None:
+        final_audio_duration = min(float(audio_duration), 120)
+    else:
+        duration = root.get("metadata", {}).get("duration_seconds")
+        final_audio_duration = min(float(duration), 120) if duration is not None else 30
 
     # ── If assembly pass produced a prompt, use direct prompt+lyrics ──
     if assembled_prompt and assembled_prompt.get("prompt"):
@@ -85,7 +91,7 @@ def song_characteristics_to_ace_step_params(
             "inference_steps": 8,
             "batch_size": 1,
             "audio_format": "mp3",
-            "audio_duration": audio_duration,
+            "audio_duration": final_audio_duration,
         }
         log.info(
             "Using assembled prompt (direct mode): caption='%s...', lyrics_len=%d",
@@ -173,6 +179,7 @@ def vibe_tree_to_ace_step_params(
     vibe_tree: dict,
     reference_audio_path: str | None = None,
     assembled_prompt: dict | None = None,
+    audio_duration: float | None = None,
 ) -> dict:
     """Convert a VibeTree JSON dict into ACE-Step /release_task parameters.
 
@@ -181,6 +188,9 @@ def vibe_tree_to_ace_step_params(
 
     If ``assembled_prompt`` is provided, passes it through to use direct
     prompt+lyrics mode instead of sample_query+thinking.
+    
+    If ``audio_duration`` is provided, it takes precedence over any duration
+    in the vibe_tree.
     """
     root = vibe_tree.get("root", vibe_tree)
     sections = root.get("sections", [])
@@ -201,6 +211,7 @@ def vibe_tree_to_ace_step_params(
             {"root": song_node},
             reference_audio_path,
             assembled_prompt,
+            audio_duration,
         )
 
     # ── Legacy VibeTree format ──────────────────────────
@@ -229,7 +240,12 @@ def vibe_tree_to_ace_step_params(
         ", ".join(description_parts) if description_parts else "instrumental music"
     )
 
-    duration = global_cfg.get("duration_seconds")
+    # Use explicit audio_duration parameter if provided, otherwise fall back to tree
+    if audio_duration is not None:
+        final_duration = audio_duration
+    else:
+        duration = global_cfg.get("duration_seconds")
+        final_duration = float(duration) if duration is not None else 30
 
     params: dict[str, Any] = {
         "sample_query": sample_query,
@@ -237,12 +253,8 @@ def vibe_tree_to_ace_step_params(
         "inference_steps": 8,
         "batch_size": 1,
         "audio_format": "mp3",
+        "audio_duration": min(final_duration, 240),
     }
-
-    if duration is not None:
-        params["audio_duration"] = min(float(duration), 240)
-    else:
-        params["audio_duration"] = 30
 
     return params
 

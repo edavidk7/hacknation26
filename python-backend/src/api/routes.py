@@ -148,6 +148,7 @@ def create_app() -> FastAPI:
     @app.post("/api/generate-music")
     async def generate_music(
         vibe_tree: str = Form(...),
+        audio_duration: float = Form(30),
         reference_audio: Optional[UploadFile] = File(None),
         background_tasks: BackgroundTasks = BackgroundTasks(),
     ) -> dict:
@@ -155,6 +156,7 @@ def create_app() -> FastAPI:
 
         Args:
             vibe_tree: JSON string of the VibeTree
+            audio_duration: Duration of the generated audio in seconds (default: 30)
             reference_audio: Optional audio file for style transfer
         """
         try:
@@ -177,7 +179,7 @@ def create_app() -> FastAPI:
         jobs[job_id] = {"status": "processing", "result": None, "error": None}
 
         background_tasks.add_task(
-            _run_music_generation, job_id, tree_dict, ref_audio_path
+            _run_music_generation, job_id, tree_dict, ref_audio_path, audio_duration
         )
 
         return {"job_id": job_id, "status": "processing"}
@@ -401,6 +403,7 @@ def _run_music_generation(
     job_id: str,
     vibe_tree: dict,
     reference_audio_path: str | None,
+    audio_duration: float = 30,
 ) -> None:
     """Run ACE-Step music generation in the background (sync — runs in threadpool)."""
     try:
@@ -422,6 +425,7 @@ def _run_music_generation(
             vibe_tree,
             reference_audio_path,
             assembled_prompt=assembled if assembled.get("prompt") else None,
+            audio_duration=audio_duration,
         )
         log.info(f"  ACE-Step params: prompt={params.get('prompt', '')[:100]}...")
 
