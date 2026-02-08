@@ -8,7 +8,6 @@ services:
     github:
       repo: edavidk7/hacknation26
       branch: main
-      deploy_on_push: true
     instance_size_slug: professional-xs
     instance_count: 1
     http_port: 8000
@@ -35,7 +34,6 @@ static_sites:
     github:
       repo: edavidk7/hacknation26
       branch: main
-      deploy_on_push: true
     build_command: npm install && npm run build
     output_dir: dist
     catchall_document: index.html

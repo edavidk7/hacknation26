@@ -809,22 +809,22 @@ function App() {
                     className="music-control-input"
                     min="40"
                     max="200"
-                    value={bpm}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (val === '') {
+                    defaultValue={bpm}
+                    onBlur={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      if (isNaN(val) || val < 40) {
                         setBpm(40);
+                        e.target.value = '40';
+                      } else if (val > 200) {
+                        setBpm(200);
+                        e.target.value = '200';
                       } else {
-                        const num = parseInt(val, 10);
-                        if (!isNaN(num)) {
-                          setBpm(Math.max(40, Math.min(200, num)));
-                        }
+                        setBpm(val);
                       }
                     }}
-                    onBlur={(e) => {
-                      const val = e.target.value;
-                      if (val === '' || isNaN(parseInt(val, 10))) {
-                        setBpm(54);
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.currentTarget.blur();
                       }
                     }}
                   />

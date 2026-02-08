@@ -1,50 +1,74 @@
 % simplified report.tex (modified: full-bleed text, numbered References)
-\documentclass[11pt,a4paper]{article}
+\documentclass[9pt,a4paper]{article}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage[english]{babel}
 \usepackage{geometry}
-% make text span to the physical page edges
-\geometry{left=0mm,right=0mm,top=0mm,bottom=0mm,includeheadfoot}
+\geometry{left=10mm,right=10mm,top=10mm,bottom=10mm}
 \usepackage{amsmath}
-\usepackage{graphicx}
 \usepackage{hyperref}
+\usepackage{multicol}
 
-\title{Ruben: A multi-modal AI music composition system}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{3pt}
+
+\title{\vspace{-10mm}\textbf{Ruben: Multimodal Music Composition via Tree-Structured Semantic Representation}\vspace{-5mm}}
 \author{David Korcak, Frantisek Kmjec}
-\date{\today}
+\date{}
 
 \begin{document}
 \maketitle
 
-\begin{abstract}
-This report presents Ruben, a multi-modal AI music composition system that integrates text, audio, and visual inputs to generate original musical pieces. We describe the architecture of Ruben, its working principles, and the key infrastructural and tooling innovations it introduces.
-\end{abstract}
+\begin{multicols}{2}
+\small
 
-\section{Introduction}
+\textbf{Abstract.} Ruben transforms memories into music via tree-structured semantic representation. Integrates text/images/video/audio through Kimi K2.5 (multimodal LLM) and generates via ACE-Step (text-to-audio). Key innovations: (1) audio-to-text feedback loop for style transfer without embeddings, (2) two-pass generation (analysis → editing → assembly).
 
+\section{Architecture}
+
+\textbf{Three-tier:} React frontend → FastAPI backend → ACE-Step. Async job-based (20-60s).
+
+\textbf{Inputs:} Text (direct). Images (base64, Kimi vision analyzes colors/mood → musical qualities). Video (6 keyframes, temporal annotations). Audio (ACE-Step \texttt{/lm/understand} extracts caption/BPM/key/lyrics → text for Kimi).
+
+\textbf{Vibe tree:} Hierarchical JSON (musical characteristics). Flexible LLM-decided schema. Branches: Emotional Landscape, Instrumentation, Sonic Production, Temporal Dynamics, Harmonic Language, Narrative Arc. \texttt{SongNode} (recursive: name, value, metadata, children).
+
+\subsection{Feedback Loops}
+
+\textbf{1. Audio-to-Text.} Reference audio → ACE-Step analysis → text → Kimi prompt. Style transfer via text-to-audio without embeddings.
+
+\textbf{2. Two-Pass.} \textit{Analysis:} Inputs → Kimi + \texttt{SYSTEM\_PROMPT} → tree → frontend editing. \textit{Assembly:} Edited tree + \texttt{ASSEMBLY\_PROMPT} → Kimi resolves convergences/tensions → coherent caption + lyrics → ACE-Step audio. Assembly critical: mechanical flattening is disjointed; assembly synthesizes coherently.
+
+\textbf{Kimi K2.5:} Long-context (128k+) multimodal LLM. Text + vision, structured JSON, web search, thinking tokens. Roles: (1) Analysis—generates tree, (2) Assembly—converts to ACE-Step prompt.
+
+\textbf{ACE-Step:} Text-to-audio diffusion. \textit{Direct} (preferred): assembly caption + lyrics. \textit{Query} (fallback): flattened tree + ACE-Step LM generates caption/lyrics.
 
 \section{Methods}
-Describe the approach and evaluation setup.
+
+\textbf{Preprocessing:} Video keyframes (OpenCV, 6 frames, temporal annotations). Audio (ACE-Step diffusion-based analysis). Images (base64).
+
+\textbf{Prompts:} \texttt{SYSTEM\_PROMPT}: analyze inputs → JSON tree (flexible structure, handles modality conflicts). \texttt{ASSEMBLY\_PROMPT}: resolve convergences/tensions, specify instruments, production quality, output ACE-Step-optimized caption + lyrics.
+
+\section{Interface}
+
+Input panel (2×2: text/audio/images/video, drag-drop). Tree editor (\texttt{TreeStack}: tabs, hover toolbars, color-coded, diff tracking, markdown export). Controls (duration 10-240s, BPM, key, time sig). History (generations, audio player, diffs, restore).
 
 \section{Results}
-Present key results.
 
-\begin{figure}[h]
-  \centering
-  % placeholder box avoids missing-file errors
-  \fbox{\parbox[c][3cm][c]{\textwidth}{Figure placeholder}}
-  \caption{Example figure.}
-  \label{fig:example}
-\end{figure}
+Text + images + video → richer trees than single-modality. Reference audio influences generation (lo-fi hip-hop → tape saturation). Tree editing affects audio. Assembly >> mechanical flattening. Pipeline 45-90s (ACE-Step 30-60s).
+
+\section{Discussion}
+
+\textbf{Innovations:} Tree-structured representation (interpretable, editable, flexible). Audio-to-text loop (style transfer via text-to-audio). Two-pass (analysis → assembly). Multimodal orchestration (Kimi). Human-in-the-loop.
+
+\textbf{Limitations:} 120s limit (ACE-Step). Async polling latency. Internet dependency. Assembly failures. Audio understanding limited for experimental music.
+
+\textbf{Future:} Multi-gen stitching (longer). Streaming diffusion (real-time). Local deployment. Tree merging/templates. ACE-Step remix. User studies.
 
 \section{Conclusion}
-Summary and future work.
 
-\section{References}
-\begin{thebibliography}{9}
-\bibitem{Smith2019}
-J.~Smith, \emph{Example Reference}, 2019.
-\end{thebibliography}
+Ruben demonstrates multimodal → semantic → audio viability. Tree representation enables human-in-the-loop refinement with AI multimodal reasoning. Two feedback loops (audio-to-text, two-pass assembly) distinguish from direct text-to-audio. Integrates text/images/video/audio → 120s compositions. Tree editor provides interpretability/control. Tree-structured semantics offer promising paradigm for AI creative tools.
 
+\textbf{References.} [1] ACE-Step. [2] Kimi K2.5, 2024. [3] OpenRouter. [4] Ho et al., NeurIPS 2020. [5] OpenAI, arXiv:2303.08774. [6] Agostinelli et al., arXiv:2301.11325. [7] Kong et al., TASLP 2020. [8] Verma \& Chetty, ISMIR 2018.
+
+\end{multicols}
 \end{document}
